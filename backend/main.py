@@ -58,34 +58,50 @@ async def shutdown_event():
 
 @app.get("/agents")
 async def get_agents():
-    """Scans the agents directory and returns a list of available agents."""
+    """Scans agent directories and returns a list of available agents."""
     agents = []
-    agents_dir = os.path.abspath("agents")
-    for agent_id in os.listdir(agents_dir):
-        agent_path = os.path.join(agents_dir, agent_id)
-        if os.path.isdir(agent_path):
-            description = f"The {agent_id} agent."  # Default description
-            
-            # Look for the agent.py file to extract a better description
-            nested_agent_path = os.path.join(agent_path, agent_id)
-            agent_py_path = os.path.join(nested_agent_path, "agent.py")
+    agent_dirs = [
+        os.path.abspath("agents"),
+        os.path.abspath("agents/adk-samples/python/agents")
+    ]
 
-            if os.path.exists(agent_py_path):
-                try:
-                    with open(agent_py_path, "r") as f:
-                        content = f.read()
-                        # Use regex to find the description in the LlmAgent constructor
-                        match = re.search(r'description="([^"]+)"', content)
-                        if match:
-                            description = match.group(1)
-                except Exception as e:
-                    print(f"Could not read or parse {agent_py_path}: {e}")
+    for agents_dir in agent_dirs:
+        if not os.path.exists(agents_dir):
+            continue
+        for agent_id in os.listdir(agents_dir):
+            if agent_id == 'adk-samples':
+                continue
+            agent_path = os.path.join(agents_dir, agent_id)
+            if os.path.isdir(agent_path):
+                description = f"The {agent_id} agent."  # Default description
+                
+                # Convert agent_id from kebab-case to snake_case for the python module
+                module_name = agent_id.replace('-', '_')
 
-            agents.append({
-                "id": agent_id,
-                "name": agent_id,
-                "description": description,
-            })
+                # Look for the agent.py file to extract a better description
+                # The module directory is not always the same as the agent_id
+                nested_agent_path = os.path.join(agent_path, module_name)
+                if not os.path.exists(nested_agent_path):
+                    nested_agent_path = os.path.join(agent_path, agent_id)
+
+                agent_py_path = os.path.join(nested_agent_path, "agent.py")
+
+                if os.path.exists(agent_py_path):
+                    try:
+                        with open(agent_py_path, "r") as f:
+                            content = f.read()
+                            # Use regex to find the description in the LlmAgent constructor
+                            match = re.search(r'description="([^"]+)"', content)
+                            if match:
+                                description = match.group(1)
+                    except Exception as e:
+                        print(f"Could not read or parse {agent_py_path}: {e}")
+
+                agents.append({
+                    "id": agent_id,
+                    "name": agent_id,
+                    "description": description,
+                })
     return agents
 
 async def read_stream_and_signal_start(stream, agent_name: str, is_error_stream: bool, started_event: asyncio.Event):
@@ -121,7 +137,23 @@ async def start_agent_process(agent_name: str, port: int):
         await manager.broadcast(json.dumps({"type": "status", "agent": agent_name, "status": "already_running"}))
         return
 
-    agent_path = os.path.abspath(f"agents/{agent_name}")
+    # Determine the correct path for the agent
+    possible_paths = [
+        os.path.abspath(f"agents/{agent_name}"),
+        os.path.abspath(f"agents/adk-samples/python/agents/{agent_name}")
+    ]
+    
+    agent_path = ""
+    for path in possible_paths:
+        if os.path.exists(path):
+            agent_path = path
+            break
+    
+    if not agent_path:
+        await manager.broadcast(json.dumps({"type": "log", "agent": agent_name, "line": f"[ERROR] Agent '{agent_name}' not found."}))
+        await manager.broadcast(json.dumps({"type": "status", "agent": agent_name, "status": "failed"}))
+        return
+
     venv_path = os.path.join(agent_path, ".venv")
     python_executable = os.path.join(venv_path, "bin", "python")
     requirements_path = os.path.join(agent_path, "requirements.txt")
