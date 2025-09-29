@@ -60,7 +60,7 @@ const AgentListItem: React.FC<{
       <div className="flex items-center justify-end space-x-2 mt-auto">
         <button
           onClick={(e) => { e.stopPropagation(); onStart(agent.id); }}
-          disabled={!isStopped}
+          disabled={agent.status !== AgentStatus.STOPPED}
           className="p-2 text-sm font-medium rounded-md bg-adk-dark-3 hover:bg-adk-accent hover:text-white disabled:bg-adk-dark-3/50 disabled:text-adk-text-secondary disabled:cursor-not-allowed flex items-center transition-colors"
           aria-label={`Start ${agent.name}`}
         >

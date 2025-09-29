@@ -93,7 +93,7 @@ export const useManagementSocket = () => {
     return () => {
       ws.current?.close();
     };
-  }, [appendLog]);
+  }, []);
 
   const sendCommand = (command: object) => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
