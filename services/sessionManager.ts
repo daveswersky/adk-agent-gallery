@@ -2,7 +2,7 @@ import Session from './sessionService';
 import { Agent } from '../types';
 
 class SessionManager {
-    private sessions: Map<string, Session> = new Map();
+    public sessions: Map<string, Session> = new Map();
 
     async getSession(agent: Agent): Promise<Session> {
         if (this.sessions.has(agent.id)) {
@@ -17,6 +17,14 @@ class SessionManager {
         await newSession.create();
         this.sessions.set(agent.id, newSession);
         return newSession;
+    }
+
+    getSessionDetails() {
+        return Array.from(this.sessions.entries()).map(([agentId, session]) => ({
+            agentId,
+            sessionId: session['sessionId'], // Accessing private property for display
+            historyCount: session.history.length,
+        }));
     }
 }
 

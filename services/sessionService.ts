@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { ChatMessage } from '../types';
 
 class Session {
-    private sessionId: string;
+    public sessionId: string;
     private agentUrl: string;
     private agentName: string;
     private userId: string;

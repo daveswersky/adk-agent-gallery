@@ -64,11 +64,27 @@ async def get_agents():
     for agent_id in os.listdir(agents_dir):
         agent_path = os.path.join(agents_dir, agent_id)
         if os.path.isdir(agent_path):
-            # The agent's name is its directory name.
+            description = f"The {agent_id} agent."  # Default description
+            
+            # Look for the agent.py file to extract a better description
+            nested_agent_path = os.path.join(agent_path, agent_id)
+            agent_py_path = os.path.join(nested_agent_path, "agent.py")
+
+            if os.path.exists(agent_py_path):
+                try:
+                    with open(agent_py_path, "r") as f:
+                        content = f.read()
+                        # Use regex to find the description in the LlmAgent constructor
+                        match = re.search(r'description="([^"]+)"', content)
+                        if match:
+                            description = match.group(1)
+                except Exception as e:
+                    print(f"Could not read or parse {agent_py_path}: {e}")
+
             agents.append({
                 "id": agent_id,
                 "name": agent_id,
-                "description": f"The {agent_id} agent.",
+                "description": description,
             })
     return agents
 

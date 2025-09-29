@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Agent, AgentStatus } from '../types';
 import { LogViewer } from './LogViewer';
 import { SpinnerIcon } from './icons';
+import { sessionManager } from '../services/sessionManager';
 
 interface InfoPaneProps {
   logs: string[];
   agents: Agent[];
+  selectedAgent: Agent | null;
 }
 
 type ActiveTab = 'Servers' | 'Events' | 'Sessions';
@@ -25,8 +27,16 @@ const StatusIndicator: React.FC<{ status: AgentStatus }> = ({ status }) => {
   }
 };
 
-export const InfoPane: React.FC<InfoPaneProps> = ({ logs, agents }) => {
+export const InfoPane: React.FC<InfoPaneProps> = ({ logs, agents, selectedAgent }) => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('Events');
+
+  const filteredLogs = useMemo(() => {
+    if (!selectedAgent) {
+      return logs.filter(log => !log.startsWith('['));
+    }
+    const agentPrefix = `[${selectedAgent.id}]`;
+    return logs.filter(log => !log.startsWith('[') || log.startsWith(agentPrefix));
+  }, [logs, selectedAgent]);
 
   const getTabClass = (tabName: ActiveTab) => {
     return `px-4 py-2 text-sm font-medium rounded-t-md cursor-pointer transition-colors ${
@@ -39,6 +49,15 @@ export const InfoPane: React.FC<InfoPaneProps> = ({ logs, agents }) => {
   const runningServers = agents.filter(
     agent => agent.status !== AgentStatus.STOPPED
   );
+
+  const activeSessions = useMemo(() => {
+    const allSessions = sessionManager.getSessionDetails();
+    if (selectedAgent) {
+      return allSessions.filter(s => s.agentId === selectedAgent.id);
+    }
+    return allSessions;
+  }, [selectedAgent, logs]); // Re-calculate when logs change
+
 
   const renderContent = () => {
     switch (activeTab) {
@@ -62,11 +81,23 @@ export const InfoPane: React.FC<InfoPaneProps> = ({ logs, agents }) => {
           </div>
         );
       case 'Events':
-        return <LogViewer logs={logs} />;
+        return <LogViewer logs={filteredLogs} />;
       case 'Sessions':
         return (
-          <div className="flex items-center justify-center h-full text-adk-text-secondary font-mono text-sm">
-            Session information will be displayed here.
+          <div className="p-4 font-mono text-sm text-adk-text-secondary space-y-2 h-full overflow-y-auto">
+            {activeSessions.length > 0 ? (
+              activeSessions.map(session => (
+                <div key={session.sessionId} className="grid grid-cols-[1fr,2fr,auto] items-center gap-x-4 p-2 rounded bg-adk-dark-2">
+                   <span className="font-semibold text-adk-text truncate" title={session.agentId}>{session.agentId}</span>
+                   <span className="text-xs truncate" title={session.sessionId}>{session.sessionId}</span>
+                   <span className="text-xs">{session.historyCount} messages</span>
+                </div>
+              ))
+            ) : (
+              <div className="flex items-center justify-center h-full">
+                {selectedAgent ? 'No active session for this agent.' : 'No active sessions.'}
+              </div>
+            )}
           </div>
         );
       default:

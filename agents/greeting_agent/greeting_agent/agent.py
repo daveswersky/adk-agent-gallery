@@ -22,4 +22,3 @@ greeting_agent = Agent(
 )
 
 root_agent = greeting_agent
-#serving = serve.from_callable(root_agent.run_async)

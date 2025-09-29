@@ -50,13 +50,13 @@ const AgentListItem: React.FC<{
   return (
     <div
       onClick={() => isRunning && onSelect(agent)}
-      className={`p-3 rounded-lg border flex flex-col transition-all duration-200 ${isActive ? 'bg-adk-accent/20 border-adk-accent' : 'border-adk-dark-3 hover:bg-adk-dark-3'} ${isRunning ? 'cursor-pointer' : 'opacity-70 cursor-default'}`}
+      className={`p-2 rounded-lg border flex flex-col transition-all duration-200 ${isActive ? 'bg-adk-accent/20 border-adk-accent' : 'border-adk-dark-3 hover:bg-adk-dark-3'} ${isRunning ? 'cursor-pointer' : 'opacity-70 cursor-default'}`}
     >
-      <div className="flex justify-between items-center mb-2">
-        <h4 className="font-semibold text-adk-text truncate pr-2">{agent.name}</h4>
+      <div className="flex justify-between items-center mb-1">
+        <h4 className="font-semibold text-adk-text truncate pr-2 text-base">{agent.name}</h4>
         <StatusBadge status={agent.status} />
       </div>
-      <p className="text-sm text-adk-text-secondary mb-3 text-ellipsis overflow-hidden h-10">{agent.description}</p>
+      <p className="text-xs text-adk-text-secondary mb-2 text-ellipsis overflow-hidden">{agent.description}</p>
       <div className="flex items-center justify-end space-x-2 mt-auto">
         <button
           onClick={(e) => { e.stopPropagation(); onStart(agent.id); }}
