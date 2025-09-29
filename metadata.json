@@ -1,0 +1,5 @@
+{
+  "name": "ADK Agent Gallery",
+  "description": "An application to manage and interact with multiple ADK agents. It provides a gallery to view, start, and stop agents, a live log viewer, and a chat interface to communicate with running agents.",
+  "requestFramePermissions": []
+}
