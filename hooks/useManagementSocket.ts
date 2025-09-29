@@ -1,12 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Agent, AgentStatus, ServerMessage } from '../types';
 
-// Assign static ports to agents
-const AGENT_PORTS: { [key: string]: number } = {
-  greeting_agent: 8001,
-  weather_agent: 8002,
-};
-
 const MANAGEMENT_URL = 'ws://localhost:8000/ws';
 const AGENTS_URL = 'http://localhost:8000/agents';
 
@@ -17,13 +11,12 @@ export const useManagementSocket = () => {
   const ws = useRef<WebSocket | null>(null);
 
   const appendLog = useCallback((log: string) => {
-    // Keep the log to a reasonable size
     setLogs(prev => [...prev.slice(-200), log]);
   }, []);
 
-  // Step 1: Fetch the initial list of agents on mount
   useEffect(() => {
-    const fetchAgents = async () => {
+    const connect = async () => {
+      // 1. Fetch agents first
       try {
         const response = await fetch(AGENTS_URL);
         const data = await response.json();
@@ -35,80 +28,72 @@ export const useManagementSocket = () => {
       } catch (error) {
         console.error("Failed to fetch agents:", error);
         appendLog('--- Error fetching agent list ---');
+        return; // Don't try to connect if fetching failed
       }
-    };
-    fetchAgents();
-  }, [appendLog]);
 
+      // 2. Now, connect to WebSocket
+      ws.current = new WebSocket(MANAGEMENT_URL);
 
-  // Step 2: Connect to WebSocket only after the agent list has been loaded
-  useEffect(() => {
-    // Don't connect until we have the agent list.
-    if (agents.length === 0) {
-      return;
-    }
+      ws.current.onopen = () => {
+        setIsConnected(true);
+        appendLog('--- Connected to management server ---');
+      };
 
-    ws.current = new WebSocket(MANAGEMENT_URL);
+      ws.current.onclose = () => {
+        setIsConnected(false);
+        appendLog('--- Disconnected from management server ---');
+        setAgents(prev => prev.map(a => ({ ...a, status: AgentStatus.STOPPED, url: undefined })));
+      };
 
-    ws.current.onopen = () => {
-      setIsConnected(true);
-      appendLog('--- Connected to management server ---');
-    };
-
-    ws.current.onclose = () => {
-      setIsConnected(false);
-      appendLog('--- Disconnected from management server ---');
-      // Reset agent statuses on disconnect
-      setAgents(prev => prev.map(a => ({ ...a, status: AgentStatus.STOPPED, url: undefined })));
-    };
-
-    ws.current.onmessage = (event) => {
-      try {
-        const message: ServerMessage = JSON.parse(event.data);
-
-        if (message.type === 'status') {
-          const { agent: agentId, status, url } = message;
-          setAgents(prev => prev.map(agent => {
-            if (agent.id === agentId) {
-              let newStatus: AgentStatus;
-              switch (status) {
-                case 'running':
-                case 'already_running':
-                  newStatus = AgentStatus.RUNNING;
-                  break;
-                case 'stopped':
-                case 'not_running':
-                  newStatus = AgentStatus.STOPPED;
-                  break;
-                default:
-                  newStatus = agent.status; 
+      ws.current.onmessage = (event) => {
+        try {
+          const message: ServerMessage = JSON.parse(event.data);
+          if (message.type === 'status') {
+            const { agent: agentId, status, url } = message;
+            setAgents(prev => prev.map(agent => {
+              if (agent.id === agentId) {
+                let newStatus: AgentStatus;
+                switch (status) {
+                  case 'running':
+                  case 'already_running':
+                    newStatus = AgentStatus.RUNNING;
+                    break;
+                  case 'stopped':
+                  case 'not_running':
+                    newStatus = AgentStatus.STOPPED;
+                    break;
+                  default:
+                    newStatus = agent.status;
+                }
+                appendLog(`--- Status [${agent.name}]: ${status.toUpperCase()} ---`);
+                return { ...agent, status: newStatus, url: url || undefined };
               }
-              appendLog(`--- Status [${agent.name}]: ${status.toUpperCase()} ---`);
-              return { ...agent, status: newStatus, url: url || undefined };
-            }
-            return agent;
-          }));
-        } else if (message.type === 'log') {
-          const { agent, line } = message;
-          appendLog(`[${agent}] ${line}`);
+              return agent;
+            }));
+          } else if (message.type === 'log') {
+            const { agent, line } = message;
+            appendLog(`[${agent}] ${line}`);
+          }
+        } catch (error) {
+          console.error("Error parsing message from server:", event.data);
+          appendLog("--- Error parsing server message ---");
         }
-      } catch (error) {
-        console.error("Error parsing message from server:", event.data);
-        appendLog("--- Error parsing server message ---");
-      }
+      };
+
+      ws.current.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        appendLog('--- WebSocket connection error ---');
+        setIsConnected(false);
+      };
     };
 
-    ws.current.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      appendLog('--- WebSocket connection error ---');
-      setIsConnected(false);
-    };
+    connect();
 
     // Cleanup on unmount
     return () => {
       ws.current?.close();
     };
-  }, [agents.length, appendLog]); // Rerun this effect if the number of agents changes (unlikely, but robust)
+  }, [appendLog]);
 
   const sendCommand = (command: object) => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
@@ -120,13 +105,17 @@ export const useManagementSocket = () => {
   };
 
   const startAgent = (agentId: string) => {
-    const agent = agents.find(a => a.id === agentId);
-    if (agent && agent.status === AgentStatus.STOPPED) {
+    const agentIndex = agents.findIndex(a => a.id === agentId);
+    if (agentIndex !== -1 && agents[agentIndex].status === AgentStatus.STOPPED) {
+        const agent = agents[agentIndex];
         setAgents(prev => prev.map(a => a.id === agentId ? { ...a, status: AgentStatus.STARTING } : a));
+        
+        const port = 8001 + agentIndex;
+
         sendCommand({
           action: 'start',
           agent_name: agent.id,
-          port: AGENT_PORTS[agentId],
+          port: port,
         });
     }
   };

@@ -226,8 +226,15 @@ async def start_agent_process(agent_name: str, port: int):
             await manager.broadcast(json.dumps({"type": "status", "agent": agent_name, "status": "failed"}))
             return
 
-    # 3. Install dependencies if requirements.txt exists
+    # 3. Install dependencies if requirements.txt or pyproject.toml exists
+    pyproject_path = os.path.join(agent_path, "pyproject.toml")
+    install_command_args = []
     if os.path.exists(requirements_path):
+        install_command_args = ["pip", "install", "-r", "requirements.txt"]
+    elif os.path.exists(pyproject_path):
+        install_command_args = ["pip", "install", "-e", "."]
+
+    if install_command_args:
         await manager.broadcast(json.dumps({"type": "status", "agent": agent_name, "status": "installing_dependencies"}))
         try:
             # Set the VIRTUAL_ENV environment variable to mimic venv activation
@@ -235,7 +242,7 @@ async def start_agent_process(agent_name: str, port: int):
             env["VIRTUAL_ENV"] = venv_path
 
             proc = await asyncio.create_subprocess_exec(
-                uv_executable, "pip", "install", "-r", "requirements.txt",
+                uv_executable, *install_command_args,
                 cwd=agent_path,
                 env=env,
                 stdout=asyncio.subprocess.PIPE,
@@ -262,6 +269,8 @@ async def start_agent_process(agent_name: str, port: int):
     adk_executable = os.path.join(venv_path, "bin", "adk")
     env = os.environ.copy()
     env["VIRTUAL_ENV"] = venv_path
+    # Add the parent directory of the agent code to the Python path
+    env["PYTHONPATH"] = agent_path
 
     # If ADK is not found after installing from requirements, try to install it directly.
     if not os.path.exists(adk_executable):
@@ -303,7 +312,17 @@ async def start_agent_process(agent_name: str, port: int):
         await manager.broadcast(json.dumps({"type": "status", "agent": agent_name, "status": "failed"}))
         return
 
-    command = [adk_executable, "api_server", "--port", str(port), "--allow_origins", "*"]
+    # Determine the module name and if the agent uses a nested structure
+    module_name = agent_name.replace('-', '_')
+    nested_agent_dir = os.path.join(agent_path, module_name)
+    
+    command = [adk_executable, "api_server"]
+    
+    # For nested adk-sample agents with a main.py, specify the app module
+    if os.path.exists(nested_agent_dir) and os.path.exists(os.path.join(nested_agent_dir, "main.py")):
+        command.append(f"{module_name}.main:serving")
+    
+    command.extend(["--port", str(port), "--allow_origins", "*"])
 
     process = await asyncio.create_subprocess_exec(
         *command,
@@ -347,6 +366,20 @@ async def stop_agent_process(agent_name: str):
     await manager.broadcast(json.dumps({"type": "status", "agent": agent_name, "status": "not_running"}))
 
 
+async def start_agent_with_error_handling(agent_name: str, port: int):
+    """Wrapper to catch and report exceptions from start_agent_process."""
+    try:
+        await start_agent_process(agent_name, port)
+    except Exception as e:
+        error_msg = f"An unexpected error occurred while starting {agent_name}: {e}"
+        print(error_msg)  # Also log to server console
+        await manager.broadcast(json.dumps({
+            "type": "log", "agent": agent_name, "line": f"[FATAL] {error_msg}"
+        }))
+        await manager.broadcast(json.dumps({
+            "type": "status", "agent": agent_name, "status": "failed"
+        }))
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
@@ -373,7 +406,7 @@ async def websocket_endpoint(websocket: WebSocket):
             if action == "start":
                 port = command.get("port")
                 if port:
-                    asyncio.create_task(start_agent_process(agent_name, port))
+                    asyncio.create_task(start_agent_with_error_handling(agent_name, port))
             elif action == "stop":
                 asyncio.create_task(stop_agent_process(agent_name))
 
