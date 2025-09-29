@@ -7,7 +7,7 @@
  */
 export const runTurn = async (agentUrl: string, prompt: string): Promise<string> => {
   try {
-    const response = await fetch(`${agentUrl}/run_turn`, {
+    const response = await fetch(agentUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
