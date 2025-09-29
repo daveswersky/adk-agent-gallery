@@ -16,6 +16,12 @@ export const useManagementSocket = () => {
   const [isConnected, setIsConnected] = useState(false);
   const ws = useRef<WebSocket | null>(null);
 
+  const appendLog = useCallback((log: string) => {
+    // Keep the log to a reasonable size
+    setLogs(prev => [...prev.slice(-200), log]);
+  }, []);
+
+  // Step 1: Fetch the initial list of agents on mount
   useEffect(() => {
     const fetchAgents = async () => {
       try {
@@ -32,14 +38,16 @@ export const useManagementSocket = () => {
       }
     };
     fetchAgents();
-  }, []);
+  }, [appendLog]);
 
-  const appendLog = useCallback((log: string) => {
-    // Keep the log to a reasonable size
-    setLogs(prev => [...prev.slice(-200), log]);
-  }, []);
 
+  // Step 2: Connect to WebSocket only after the agent list has been loaded
   useEffect(() => {
+    // Don't connect until we have the agent list.
+    if (agents.length === 0) {
+      return;
+    }
+
     ws.current = new WebSocket(MANAGEMENT_URL);
 
     ws.current.onopen = () => {
@@ -50,7 +58,7 @@ export const useManagementSocket = () => {
     ws.current.onclose = () => {
       setIsConnected(false);
       appendLog('--- Disconnected from management server ---');
-      // Optionally, reset agent statuses on disconnect
+      // Reset agent statuses on disconnect
       setAgents(prev => prev.map(a => ({ ...a, status: AgentStatus.STOPPED, url: undefined })));
     };
 
@@ -73,7 +81,7 @@ export const useManagementSocket = () => {
                   newStatus = AgentStatus.STOPPED;
                   break;
                 default:
-                  newStatus = agent.status; // Should not happen
+                  newStatus = agent.status; 
               }
               appendLog(`--- Status [${agent.name}]: ${status.toUpperCase()} ---`);
               return { ...agent, status: newStatus, url: url || undefined };
@@ -100,7 +108,7 @@ export const useManagementSocket = () => {
     return () => {
       ws.current?.close();
     };
-  }, [appendLog]);
+  }, [agents.length, appendLog]); // Rerun this effect if the number of agents changes (unlikely, but robust)
 
   const sendCommand = (command: object) => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {

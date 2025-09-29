@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { Agent, ChatMessage } from '../types';
 import Session from '../services/sessionService';
+import { sessionManager } from '../services/sessionManager';
 import { SendIcon, UserIcon, BotIcon, SpinnerIcon } from './icons';
 
 interface ChatInterfaceProps {
@@ -24,23 +25,33 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [session, setSession] = useState<Session | null>(null);
+  const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   
-  // Clear chat and create new session when agent changes
+  // Get session and load history when agent changes
   useEffect(() => {
-    setMessages([]);
-    if (agent && agent.url) {
-      const newSession = new Session(agent.url, agent.name);
-      newSession.create().then(() => {
-        setSession(newSession);
-      }).catch(error => {
-        console.error("Failed to create session:", error);
-        // Optionally, display an error message to the user
-      });
-    } else {
-      setSession(null);
-    }
+    const switchSession = async () => {
+        if (agent) {
+            setIsLoading(true);
+            try {
+                const session = await sessionManager.getSession(agent);
+                setCurrentSession(session);
+                setMessages([...session.history]);
+            } catch (error) {
+                console.error("Failed to get session:", error);
+                // Optionally, display an error message to the user
+                setMessages([{ role: 'model', content: `Error starting session: ${error instanceof Error ? error.message : 'Unknown error'}` }]);
+                setCurrentSession(null);
+            } finally {
+                setIsLoading(false);
+            }
+        } else {
+            // No agent selected, clear the interface
+            setCurrentSession(null);
+            setMessages([]);
+        }
+    };
+    switchSession();
   }, [agent]);
   
   useEffect(() => {
@@ -63,21 +74,25 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isLoading || !session) return;
+    if (!input.trim() || isLoading || !currentSession) return;
 
+    // Optimistically add user message to the UI
     const userMessage: ChatMessage = { role: 'user', content: input };
     setMessages(prev => [...prev, userMessage]);
+    const currentInput = input;
     setInput('');
     setIsLoading(true);
 
     try {
-        const responseText = await session.runTurn(input);
-        const modelMessage: ChatMessage = { role: 'model', content: responseText };
-        setMessages(prev => [...prev, modelMessage]);
+        await currentSession.runTurn(currentInput);
+        // The session history is now the source of truth, so we re-sync the messages state from it.
+        setMessages([...currentSession.history]);
     } catch (error) {
         const errorMessageContent = error instanceof Error ? error.message : 'Sorry, there was an error processing your request.';
-        const errorMessage: ChatMessage = { role: 'model', content: errorMessageContent };
-        setMessages(prev => [...prev, errorMessage]);
+        // Add the error to the session history so it persists
+        currentSession.history.push({ role: 'user', content: currentInput });
+        currentSession.history.push({ role: 'model', content: errorMessageContent });
+        setMessages([...currentSession.history]);
         console.error(error);
     } finally {
         setIsLoading(false);

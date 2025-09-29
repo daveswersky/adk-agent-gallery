@@ -1,11 +1,13 @@
 
 import { v4 as uuidv4 } from 'uuid';
+import { ChatMessage } from '../types';
 
 class Session {
     private sessionId: string;
     private agentUrl: string;
     private agentName: string;
     private userId: string;
+    public history: ChatMessage[] = [];
 
     constructor(agentUrl: string, agentName: string) {
         this.sessionId = uuidv4();
@@ -65,7 +67,13 @@ class Session {
         if (Array.isArray(data) && data.length > 0) {
             const firstEvent = data[0];
             if (firstEvent.content && firstEvent.content.parts && firstEvent.content.parts.length > 0) {
-                return firstEvent.content.parts[0].text;
+                const responseText = firstEvent.content.parts[0].text;
+                
+                // Add both user and model messages to history
+                this.history.push({ role: 'user', content: prompt });
+                this.history.push({ role: 'model', content: responseText });
+
+                return responseText;
             }
         }
         

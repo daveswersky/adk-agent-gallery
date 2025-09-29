@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Dict
 
 # In-memory store for running agent processes
-running_processes: Dict[str, asyncio.subprocess.Process] = {}
+running_processes: Dict[str, Dict] = {}
 
 class ConnectionManager:
     def __init__(self):
@@ -40,7 +40,8 @@ app.add_middleware(
 async def shutdown_event():
     """Gracefully terminate all running agent subprocesses on server shutdown."""
     print("Server shutting down. Terminating agent processes...")
-    for agent_name, process in list(running_processes.items()):
+    for agent_name, agent_info in list(running_processes.items()):
+        process = agent_info["process"]
         print(f"Stopping agent: {agent_name} (PID: {process.pid})")
         process.terminate()
         try:
@@ -108,6 +109,7 @@ async def start_agent_process(agent_name: str, port: int):
     venv_path = os.path.join(agent_path, ".venv")
     python_executable = os.path.join(venv_path, "bin", "python")
     requirements_path = os.path.join(agent_path, "requirements.txt")
+    uv_executable = os.path.join(venv_path, "bin", "uv")
 
     # 1. Create virtual environment if it doesn't exist
     if not os.path.exists(venv_path):
@@ -153,7 +155,6 @@ async def start_agent_process(agent_name: str, port: int):
             return
 
     # 2. Make sure uv is installed
-    uv_executable = os.path.join(venv_path, "bin", "uv")
     if not os.path.exists(uv_executable):
         await manager.broadcast(json.dumps({"type": "log", "agent": agent_name, "line": f"uv not found, installing in {agent_name} venv"}))
         try:
@@ -211,7 +212,6 @@ async def start_agent_process(agent_name: str, port: int):
 
     # 4. Execute agent using its virtual environment's python
     adk_executable = os.path.join(venv_path, "bin", "adk")
-    uv_executable = os.path.join(venv_path, "bin", "uv")
     env = os.environ.copy()
     env["VIRTUAL_ENV"] = venv_path
 
@@ -264,8 +264,7 @@ async def start_agent_process(agent_name: str, port: int):
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE
     )
-    running_processes[agent_name] = process
-
+    
     started_event = asyncio.Event()
 
     # Read both stdout and stderr to find the startup message
@@ -276,6 +275,7 @@ async def start_agent_process(agent_name: str, port: int):
     await started_event.wait()
 
     agent_url = f"http://localhost:{port}"
+    running_processes[agent_name] = {"process": process, "url": agent_url}
     await manager.broadcast(json.dumps({
         "type": "status",
         "agent": agent_name,
@@ -292,7 +292,7 @@ async def start_agent_process(agent_name: str, port: int):
 async def stop_agent_process(agent_name: str):
     """Stops a running ADK agent process."""
     if agent_name in running_processes:
-        process = running_processes[agent_name]
+        process = running_processes[agent_name]["process"]
         process.terminate()
         await process.wait()
         return
@@ -302,7 +302,19 @@ async def stop_agent_process(agent_name: str):
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
+    
+    # Upon connection, send the current status of all running agents to the new client
     try:
+        for agent_name, agent_info in running_processes.items():
+            status_message = {
+                "type": "status",
+                "agent": agent_name,
+                "status": "running",
+                "pid": agent_info["process"].pid,
+                "url": agent_info["url"]
+            }
+            await websocket.send_text(json.dumps(status_message))
+
         while True:
             data = await websocket.receive_text()
             command = json.loads(data)
