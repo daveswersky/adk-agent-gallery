@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { Agent, ChatMessage } from '../types';
-import { runTurn } from '../services/agentService';
+import Session from '../services/sessionService';
 import { SendIcon, UserIcon, BotIcon, SpinnerIcon } from './icons';
 
 interface ChatInterfaceProps {
@@ -24,11 +24,23 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   
-  // Clear chat when agent changes
+  // Clear chat and create new session when agent changes
   useEffect(() => {
     setMessages([]);
+    if (agent && agent.url) {
+      const newSession = new Session(agent.url, agent.name);
+      newSession.create().then(() => {
+        setSession(newSession);
+      }).catch(error => {
+        console.error("Failed to create session:", error);
+        // Optionally, display an error message to the user
+      });
+    } else {
+      setSession(null);
+    }
   }, [agent]);
   
   useEffect(() => {
@@ -51,7 +63,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isLoading || !agent.url) return;
+    if (!input.trim() || isLoading || !session) return;
 
     const userMessage: ChatMessage = { role: 'user', content: input };
     setMessages(prev => [...prev, userMessage]);
@@ -59,7 +71,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent }) => {
     setIsLoading(true);
 
     try {
-        const responseText = await runTurn(agent.url, input);
+        const responseText = await session.runTurn(input);
         const modelMessage: ChatMessage = { role: 'model', content: responseText };
         setMessages(prev => [...prev, modelMessage]);
     } catch (error) {

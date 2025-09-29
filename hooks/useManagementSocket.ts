@@ -1,22 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Agent, AgentStatus, ServerMessage } from '../types';
 
-// In a real app, this might come from an API call or a config file
-const INITIAL_AGENTS: Agent[] = [
-  {
-    id: 'greeting_agent',
-    name: 'Greeting Agent',
-    description: 'A simple agent that says hello.',
-    status: AgentStatus.STOPPED,
-  },
-  {
-    id: 'weather_agent',
-    name: 'Weather Agent',
-    description: 'Provides weather forecasts.',
-    status: AgentStatus.STOPPED,
-  },
-];
-
 // Assign static ports to agents
 const AGENT_PORTS: { [key: string]: number } = {
   greeting_agent: 8001,
@@ -24,12 +8,31 @@ const AGENT_PORTS: { [key: string]: number } = {
 };
 
 const MANAGEMENT_URL = 'ws://localhost:8000/ws';
+const AGENTS_URL = 'http://localhost:8000/agents';
 
 export const useManagementSocket = () => {
-  const [agents, setAgents] = useState<Agent[]>(INITIAL_AGENTS);
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [logs, setLogs] = useState<string[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const ws = useRef<WebSocket | null>(null);
+
+  useEffect(() => {
+    const fetchAgents = async () => {
+      try {
+        const response = await fetch(AGENTS_URL);
+        const data = await response.json();
+        const agentsWithStatus = data.map((agent: Omit<Agent, 'status'>) => ({
+          ...agent,
+          status: AgentStatus.STOPPED,
+        }));
+        setAgents(agentsWithStatus);
+      } catch (error) {
+        console.error("Failed to fetch agents:", error);
+        appendLog('--- Error fetching agent list ---');
+      }
+    };
+    fetchAgents();
+  }, []);
 
   const appendLog = useCallback((log: string) => {
     // Keep the log to a reasonable size
@@ -114,7 +117,7 @@ export const useManagementSocket = () => {
         setAgents(prev => prev.map(a => a.id === agentId ? { ...a, status: AgentStatus.STARTING } : a));
         sendCommand({
           action: 'start',
-          agent_name: agentId,
+          agent_name: agent.id,
           port: AGENT_PORTS[agentId],
         });
     }

@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import re
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Dict
@@ -34,6 +35,41 @@ app.add_middleware(
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
 )
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Gracefully terminate all running agent subprocesses on server shutdown."""
+    print("Server shutting down. Terminating agent processes...")
+    for agent_name, process in list(running_processes.items()):
+        print(f"Stopping agent: {agent_name} (PID: {process.pid})")
+        process.terminate()
+        try:
+            # Wait for the process to terminate
+            await asyncio.wait_for(process.wait(), timeout=5.0)
+            print(f"Agent {agent_name} terminated successfully.")
+        except asyncio.TimeoutError:
+            print(f"Agent {agent_name} did not terminate in time, killing.")
+            process.kill()
+        except Exception as e:
+            print(f"Error terminating agent {agent_name}: {e}")
+    running_processes.clear()
+    print("All agent processes terminated.")
+
+@app.get("/agents")
+async def get_agents():
+    """Scans the agents directory and returns a list of available agents."""
+    agents = []
+    agents_dir = os.path.abspath("agents")
+    for agent_id in os.listdir(agents_dir):
+        agent_path = os.path.join(agents_dir, agent_id)
+        if os.path.isdir(agent_path):
+            # The agent's name is its directory name.
+            agents.append({
+                "id": agent_id,
+                "name": agent_id,
+                "description": f"The {agent_id} agent.",
+            })
+    return agents
 
 async def read_stream_and_signal_start(stream, agent_name: str, is_error_stream: bool, started_event: asyncio.Event):
     """
@@ -145,8 +181,14 @@ async def start_agent_process(agent_name: str, port: int):
     if os.path.exists(requirements_path):
         await manager.broadcast(json.dumps({"type": "status", "agent": agent_name, "status": "installing_dependencies"}))
         try:
+            # Set the VIRTUAL_ENV environment variable to mimic venv activation
+            env = os.environ.copy()
+            env["VIRTUAL_ENV"] = venv_path
+
             proc = await asyncio.create_subprocess_exec(
-                uv_executable, "pip", "install", "-r", requirements_path,
+                uv_executable, "pip", "install", "-r", "requirements.txt",
+                cwd=agent_path,
+                env=env,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
@@ -169,11 +211,56 @@ async def start_agent_process(agent_name: str, port: int):
 
     # 4. Execute agent using its virtual environment's python
     adk_executable = os.path.join(venv_path, "bin", "adk")
+    uv_executable = os.path.join(venv_path, "bin", "uv")
+    env = os.environ.copy()
+    env["VIRTUAL_ENV"] = venv_path
+
+    # If ADK is not found after installing from requirements, try to install it directly.
+    if not os.path.exists(adk_executable):
+        await manager.broadcast(json.dumps({
+            "type": "log", "agent": agent_name, "line": "ADK executable not found. Attempting direct installation of google-adk..."
+        }))
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                uv_executable, "pip", "install", "google-adk",
+                cwd=agent_path,
+                env=env,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            # Stream pip install output
+            asyncio.create_task(read_pip_stream(proc.stdout, agent_name, False))
+            asyncio.create_task(read_pip_stream(proc.stderr, agent_name, True))
+            await proc.wait()
+
+            if proc.returncode != 0:
+                error_msg = "Failed to install google-adk directly."
+                await manager.broadcast(json.dumps({"type": "log", "agent": agent_name, "line": f"[ERROR] {error_msg}"}))
+                await manager.broadcast(json.dumps({"type": "status", "agent": agent_name, "status": "failed"}))
+                return
+            
+            await manager.broadcast(json.dumps({"type": "log", "agent": agent_name, "line": "Direct installation of google-adk successful."}))
+
+        except Exception as e:
+            error_msg = f"Exception during direct google-adk installation: {e}"
+            await manager.broadcast(json.dumps({"type": "log", "agent": agent_name, "line": f"[ERROR] {error_msg}"}))
+            await manager.broadcast(json.dumps({"type": "status", "agent": agent_name, "status": "failed"}))
+            return
+
+    # Final check for the ADK executable
+    if not os.path.exists(adk_executable):
+        await manager.broadcast(json.dumps({
+            "type": "log", "agent": agent_name, "line": "[ERROR] ADK executable still not found after direct installation."
+        }))
+        await manager.broadcast(json.dumps({"type": "status", "agent": agent_name, "status": "failed"}))
+        return
+
     command = [adk_executable, "api_server", "--port", str(port), "--allow_origins", "*"]
 
     process = await asyncio.create_subprocess_exec(
         *command,
         cwd=agent_path,
+        env=env,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE
     )

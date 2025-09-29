@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from google.adk.agents import LlmAgent
-from google.adk.runtime import serve
+from google.adk.agents import Agent, LlmAgent
 
-agent = LlmAgent(
-    model="gemini-1.5-flash-001",
-    name="GreetingAgent",
+greeting_agent = Agent(
+    model="gemini-2.5-flash",
+    name="greeting_agent",
     instruction="You are a friendly agent that greets the user. Your response should be short and sweet.",
     description="A simple agent that says hello.",
 )
 
-serving = serve.from_callable(agent.run_async)
+root_agent = greeting_agent
+#serving = serve.from_callable(root_agent.run_async)
