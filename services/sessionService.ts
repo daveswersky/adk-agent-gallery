@@ -17,7 +17,7 @@ class Session {
     }
 
     async create(): Promise<void> {
-        const url = `${this.agentUrl}/apps/${this.agentName}/users/${this.userId}/sessions/${this.sessionId}`;
+        const url = `${this.agentUrl}/apps/${this.agentName.replace(/-/g, '_')}/users/${this.userId}/sessions/${this.sessionId}`;
         const options = {
             method: 'POST',
             headers: {
@@ -37,7 +37,7 @@ class Session {
     async runTurn(prompt: string): Promise<string> {
         const url = `${this.agentUrl}/run`;
         const body = {
-            app_name: this.agentName,
+            app_name: this.agentName.replace(/-/g, '_'),
             user_id: this.userId,
             session_id: this.sessionId,
             new_message: {

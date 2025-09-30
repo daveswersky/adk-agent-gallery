@@ -310,17 +310,10 @@ async def start_agent_process(agent_name: str, port: int):
             await manager.broadcast(json.dumps({"type": "status", "agent": agent_name, "status": "failed"}))
             return
 
-        # Determine the module name and if the agent uses a nested structure
+        # Determine the module name to use for the ADK command.
+        # This unconditionally replaces dashes with underscores to match Python module naming conventions.
         module_name = agent_name.replace('-', '_')
-        nested_agent_dir = os.path.join(agent_path, module_name)
-        
-        command = [adk_executable, "api_server"]
-        
-        # For nested adk-sample agents with a main.py, specify the app module
-        if os.path.exists(nested_agent_dir) and os.path.exists(os.path.join(nested_agent_dir, "main.py")):
-            command.append(f"{module_name}.main:serving")
-        else:
-            command.append(module_name)
+        command = [adk_executable, "api_server", module_name]
         
         command.extend(["--port", str(port), "--allow_origins", "*"])
 
@@ -389,7 +382,7 @@ async def websocket_endpoint(websocket: WebSocket):
     # Upon connection, send the current status of all running agents to the new client
     try:
         for agent_name, agent_info in running_processes.items():
-            status_message = {
+            status__message = {
                 "type": "status",
                 "agent": agent_name,
                 "status": "running",
