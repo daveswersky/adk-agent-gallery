@@ -114,6 +114,7 @@ async def read_pip_stream(stream, agent_name: str, is_error_stream: bool):
 
 async def start_agent_process(agent_name: str, port: int):
     """Starts an ADK agent on a specific port."""
+    await manager.broadcast(json.dumps({"type": "log", "agent": agent_name, "line": "Agent startup process started."}))
     async with startup_lock:
         if agent_name in running_processes:
             await manager.broadcast(json.dumps({"type": "status", "agent": agent_name, "status": "already_running"}))
@@ -160,7 +161,9 @@ async def start_agent_process(agent_name: str, port: int):
                 # Stream venv creation output
                 asyncio.create_task(read_pip_stream(proc.stdout, agent_name, False))
                 asyncio.create_task(read_pip_stream(proc.stderr, agent_name, True))
+                await manager.broadcast(json.dumps({"type": "log", "agent": agent_name, "line": "Waiting for venv creation to complete..."}))
                 await proc.wait()
+                await manager.broadcast(json.dumps({"type": "log", "agent": agent_name, "line": "Venv creation complete."}))
 
                 if proc.returncode != 0:
                     error_msg = f"Failed to create venv for {agent_name}. Check logs for details."
@@ -178,7 +181,9 @@ async def start_agent_process(agent_name: str, port: int):
                 )
                 asyncio.create_task(read_pip_stream(proc.stdout, agent_name, False))
                 asyncio.create_task(read_pip_stream(proc.stderr, agent_name, True))
+                await manager.broadcast(json.dumps({"type": "log", "agent": agent_name, "line": "Waiting for uv installation to complete..."}))
                 await proc.wait()
+                await manager.broadcast(json.dumps({"type": "log", "agent": agent_name, "line": "uv installation complete."}))
 
                 if proc.returncode != 0:
                     error_msg = f"Failed to install uv in {agent_name} venv. Check logs for details."
@@ -202,7 +207,9 @@ async def start_agent_process(agent_name: str, port: int):
                 )
                 asyncio.create_task(read_pip_stream(proc.stdout, agent_name, False))
                 asyncio.create_task(read_pip_stream(proc.stderr, agent_name, True))
+                await manager.broadcast(json.dumps({"type": "log", "agent": agent_name, "line": "Waiting for uv installation to complete..."}))
                 await proc.wait()
+                await manager.broadcast(json.dumps({"type": "log", "agent": agent_name, "line": "uv installation complete."}))
 
                 if proc.returncode != 0:
                     error_msg = f"Failed to install uv in {agent_name} venv. Check logs for details."
@@ -240,7 +247,9 @@ async def start_agent_process(agent_name: str, port: int):
                 # Stream pip install output
                 asyncio.create_task(read_pip_stream(proc.stdout, agent_name, False))
                 asyncio.create_task(read_pip_stream(proc.stderr, agent_name, True))
+                await manager.broadcast(json.dumps({"type": "log", "agent": agent_name, "line": "Waiting for dependency installation to complete..."}))
                 await proc.wait()
+                await manager.broadcast(json.dumps({"type": "log", "agent": agent_name, "line": "Dependency installation complete."}))
 
                 if proc.returncode != 0:
                     error_msg = f"Failed to install dependencies for {agent_name}. Check logs for details."
@@ -317,7 +326,7 @@ async def start_agent_process(agent_name: str, port: int):
 
         process = await asyncio.create_subprocess_exec(
             *command,
-            cwd=os.path.dirname(agent_path),
+            cwd=agent_path,
             env=env,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE

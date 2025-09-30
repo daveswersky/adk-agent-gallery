@@ -1,0 +1,3 @@
+[submodule "agents/adk-samples"]
+	path = agents/adk-samples
+	url = https://github.com/daveswersky/adk-samples
