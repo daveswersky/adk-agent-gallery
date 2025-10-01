@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { Agent, ChatMessage } from '../types';
-import Session from '../services/sessionService';
+import Session, { LoadingStatus } from '../services/sessionService';
 import { sessionManager } from '../services/sessionManager';
-import { SendIcon, UserIcon, BotIcon, SpinnerIcon } from './icons';
+import { SendIcon, UserIcon, BotIcon, SpinnerIcon, TransferIcon } from './icons';
 
 interface ChatInterfaceProps {
   agent: Agent | null;
@@ -21,32 +21,42 @@ const ChatBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
     );
 };
 
+const LoadingIndicator: React.FC<{ status: LoadingStatus }> = ({ status }) => {
+    const Icon = status.type === 'tool_use' ? TransferIcon : SpinnerIcon;
+    const iconAnimation = status.type === 'tool_use' ? 'animate-pulse' : 'animate-spin';
+    return (
+        <div className="flex justify-start gap-4">
+            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-adk-accent flex items-center justify-center"><BotIcon className="w-5 h-5 text-white" /></div>
+            <div className="max-w-xl p-4 rounded-lg bg-adk-dark-2 text-adk-text flex items-center shadow-md">
+                <Icon className={`${iconAnimation} w-5 h-5 mr-3`} /> {status.message}
+            </div>
+        </div>
+    );
+};
+
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState<LoadingStatus | null>(null);
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   
-  // Get session and load history when agent changes
   useEffect(() => {
     const switchSession = async () => {
         if (agent) {
-            setIsLoading(true);
+            setLoadingStatus({ type: 'thinking', message: 'Initializing session...' });
             try {
                 const session = await sessionManager.getSession(agent);
                 setCurrentSession(session);
                 setMessages([...session.history]);
             } catch (error) {
                 console.error("Failed to get session:", error);
-                // Optionally, display an error message to the user
                 setMessages([{ role: 'model', content: `Error starting session: ${error instanceof Error ? error.message : 'Unknown error'}` }]);
                 setCurrentSession(null);
             } finally {
-                setIsLoading(false);
+                setLoadingStatus(null);
             }
         } else {
-            // No agent selected, clear the interface
             setCurrentSession(null);
             setMessages([]);
         }
@@ -58,7 +68,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent }) => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
-  }, [messages, isLoading]);
+  }, [messages, loadingStatus]);
 
   if (!agent) {
     return (
@@ -74,28 +84,29 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isLoading || !currentSession) return;
+    if (!input.trim() || loadingStatus || !currentSession) return;
 
-    // Optimistically add user message to the UI
-    const userMessage: ChatMessage = { role: 'user', content: input };
-    setMessages(prev => [...prev, userMessage]);
     const currentInput = input;
     setInput('');
-    setIsLoading(true);
+    setLoadingStatus({ type: 'thinking', message: 'Thinking...' });
+    setMessages(prev => [...prev, { role: 'user', content: currentInput }]);
 
     try {
-        await currentSession.runTurn(currentInput);
-        // The session history is now the source of truth, so we re-sync the messages state from it.
-        setMessages([...currentSession.history]);
+        for await (const event of currentSession.runTurn(currentInput)) {
+            if (event.type === 'tool_call') {
+                const toolName = event.content.name.split('_').slice(0, -1).join(' ');
+                setLoadingStatus({ type: 'tool_use', message: `Using ${toolName} tool...` });
+            } else if (event.type === 'final_answer') {
+                setMessages([...currentSession.history]);
+            }
+        }
     } catch (error) {
         const errorMessageContent = error instanceof Error ? error.message : 'Sorry, there was an error processing your request.';
-        // Add the error to the session history so it persists
-        currentSession.history.push({ role: 'user', content: currentInput });
-        currentSession.history.push({ role: 'model', content: errorMessageContent });
-        setMessages([...currentSession.history]);
+        // The history is now managed by the session service, so we just sync it.
+        setMessages([...currentSession.history, { role: 'model', content: errorMessageContent }]);
         console.error(error);
     } finally {
-        setIsLoading(false);
+        setLoadingStatus(null);
     }
   };
 
@@ -108,14 +119,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent }) => {
       
       <main ref={chatContainerRef} className="flex-1 overflow-y-auto p-6 space-y-6">
         {messages.map((msg, index) => <ChatBubble key={index} message={msg} />)}
-        {isLoading && (
-            <div className="flex justify-start gap-4">
-                 <div className="flex-shrink-0 w-8 h-8 rounded-full bg-adk-accent flex items-center justify-center"><BotIcon className="w-5 h-5 text-white" /></div>
-                 <div className="max-w-xl p-4 rounded-lg bg-adk-dark-2 text-adk-text flex items-center shadow-md">
-                    <SpinnerIcon className="animate-spin w-5 h-5 mr-3" /> Thinking...
-                 </div>
-            </div>
-        )}
+        {loadingStatus && <LoadingIndicator status={loadingStatus} />}
       </main>
 
       <footer className="flex-shrink-0 p-4 border-t border-adk-dark-3">
@@ -126,9 +130,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent }) => {
             onChange={(e) => setInput(e.target.value)}
             placeholder="Type your message..."
             className="flex-1 bg-transparent px-4 py-2 text-adk-text focus:outline-none"
-            disabled={isLoading}
+            disabled={!!loadingStatus}
           />
-          <button type="submit" disabled={isLoading || !input.trim()} className="p-2 rounded-md bg-adk-accent hover:bg-adk-accent-hover text-white disabled:bg-adk-dark-3 disabled:text-adk-text-secondary disabled:cursor-not-allowed transition-colors">
+          <button type="submit" disabled={!!loadingStatus || !input.trim()} className="p-2 rounded-md bg-adk-accent hover:bg-adk-accent-hover text-white disabled:bg-adk-dark-3 disabled:text-adk-text-secondary disabled:cursor-not-allowed transition-colors">
             <SendIcon className="w-6 h-6" />
           </button>
         </form>
