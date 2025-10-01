@@ -389,7 +389,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 "pid": agent_info["process"].pid,
                 "url": agent_info["url"]
             }
-            await websocket.send_text(json.dumps(status_message))
+            await websocket.send_text(json.dumps(status__message))
 
         while True:
             data = await websocket.receive_text()

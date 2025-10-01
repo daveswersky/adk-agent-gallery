@@ -81,6 +81,17 @@ const AgentListItem: React.FC<{
 
 
 export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agents, selectedAgent, isConnected, onStart, onStop, onSelectAgent }) => {
+  const sortedAgents = [...agents].sort((a, b) => {
+    const statusOrder = {
+      [AgentStatus.RUNNING]: 1,
+      [AgentStatus.STARTING]: 2,
+      [AgentStatus.STOPPING]: 3,
+      [AgentStatus.STOPPED]: 4,
+      [AgentStatus.ERROR]: 5,
+    };
+    return (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
+  });
+
   return (
     <aside className="w-full h-full bg-adk-dark-2 flex flex-col border-r border-adk-dark-3">
       <header className="p-4 border-b border-adk-dark-3 flex-shrink-0">
@@ -92,7 +103,7 @@ export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agents, selectedAgen
       </header>
       <div className="flex-1 overflow-y-auto p-4">
         <div className="space-y-4">
-          {agents.length > 0 ? agents.map((agent) => (
+          {sortedAgents.length > 0 ? sortedAgents.map((agent) => (
             <AgentListItem
               key={agent.id}
               agent={agent}

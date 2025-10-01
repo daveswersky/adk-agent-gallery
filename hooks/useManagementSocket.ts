@@ -4,11 +4,16 @@ import { Agent, AgentStatus, ServerMessage } from '../types';
 const MANAGEMENT_URL = 'ws://localhost:8000/ws';
 const AGENTS_URL = 'http://localhost:8000/agents';
 
-export const useManagementSocket = () => {
+export const useManagementSocket = ({ onAgentStarted }: { onAgentStarted: (agent: Agent) => void; }) => {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [logs, setLogs] = useState<string[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const ws = useRef<WebSocket | null>(null);
+  const onAgentStartedRef = useRef(onAgentStarted);
+
+  useEffect(() => {
+    onAgentStartedRef.current = onAgentStarted;
+  }, [onAgentStarted]);
 
   const appendLog = useCallback((log: string) => {
     setLogs(prev => [...prev.slice(-200), log]);
@@ -50,26 +55,38 @@ export const useManagementSocket = () => {
           const message: ServerMessage = JSON.parse(event.data);
           if (message.type === 'status') {
             const { agent: agentId, status, url } = message;
-            setAgents(prev => prev.map(agent => {
-              if (agent.id === agentId) {
-                let newStatus: AgentStatus;
-                switch (status) {
-                  case 'running':
-                  case 'already_running':
-                    newStatus = AgentStatus.RUNNING;
-                    break;
-                  case 'stopped':
-                  case 'not_running':
-                    newStatus = AgentStatus.STOPPED;
-                    break;
-                  default:
-                    newStatus = agent.status;
+            setAgents(prevAgents => {
+              let startedAgent: Agent | null = null;
+              const newAgents = prevAgents.map(agent => {
+                if (agent.id === agentId) {
+                  let newStatus: AgentStatus;
+                  switch (status) {
+                    case 'running':
+                      newStatus = AgentStatus.RUNNING;
+                      // The agent object is updated here, so we capture it.
+                      startedAgent = { ...agent, status: newStatus, url: url || undefined };
+                      break;
+                    case 'already_running':
+                      newStatus = AgentStatus.RUNNING;
+                      break;
+                    case 'stopped':
+                    case 'not_running':
+                      newStatus = AgentStatus.STOPPED;
+                      break;
+                    default:
+                      newStatus = agent.status;
+                  }
+                  appendLog(`--- Status [${agent.name}]: ${status.toUpperCase()} ---`);
+                  return { ...agent, status: newStatus, url: url || undefined };
                 }
-                appendLog(`--- Status [${agent.name}]: ${status.toUpperCase()} ---`);
-                return { ...agent, status: newStatus, url: url || undefined };
+                return agent;
+              });
+              // After the state update, if an agent was started, call the callback.
+              if (startedAgent) {
+                onAgentStartedRef.current(startedAgent);
               }
-              return agent;
-            }));
+              return newAgents;
+            });
           } else if (message.type === 'log') {
             const { agent, line } = message;
             appendLog(`[${agent}] ${line}`);

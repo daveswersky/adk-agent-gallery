@@ -12,26 +12,19 @@ const MAX_SIDEBAR_WIDTH = 600; // px
 const MIN_INFO_PANE_HEIGHT = 120; // px
 
 const App: React.FC = () => {
-  const { agents, logs, isConnected, startAgent: originalStartAgent, stopAgent } = useManagementSocket();
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
-  const [agentBeingStarted, setAgentBeingStarted] = useState<string | null>(null);
+
+  const handleAgentStarted = useCallback((agent: Agent) => {
+    setSelectedAgent(agent);
+  }, []);
+
+  const { agents, logs, isConnected, startAgent, stopAgent } = useManagementSocket({ onAgentStarted: handleAgentStarted });
 
   // State for resizable panes
   const [sidebarWidth, setSidebarWidth] = useState(384); // Corresponds to w-96
   const [infoPaneHeight, setInfoPaneHeight] = useState(320); // Corresponds to h-80
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [isResizingInfoPane, setIsResizingInfoPane] = useState(false);
-
-  // Effect to automatically select an agent after it has finished starting
-  useEffect(() => {
-    if (agentBeingStarted) {
-      const agent = agents.find(a => a.id === agentBeingStarted);
-      if (agent && agent.status === AgentStatus.RUNNING) {
-        setSelectedAgent(agent);
-        setAgentBeingStarted(null); // Reset tracker
-      }
-    }
-  }, [agents, agentBeingStarted]);
 
   // Effect to automatically deselect an agent if its status is no longer 'RUNNING'
   useEffect(() => {
@@ -51,11 +44,6 @@ const App: React.FC = () => {
     if (agent.status === AgentStatus.RUNNING) {
       setSelectedAgent(agent);
     }
-  };
-
-  const startAgent = (agentId: string) => {
-    setAgentBeingStarted(agentId);
-    originalStartAgent(agentId);
   };
   
   // Mouse down handlers to initiate resizing

@@ -40,6 +40,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent }) => {
   const [loadingStatus, setLoadingStatus] = useState<LoadingStatus | null>(null);
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   
   useEffect(() => {
     const switchSession = async () => {
@@ -69,6 +70,13 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent }) => {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
   }, [messages, loadingStatus]);
+
+  useEffect(() => {
+    // When the agent is done loading, focus the input
+    if (loadingStatus === null) {
+      inputRef.current?.focus();
+    }
+  }, [loadingStatus]);
 
   if (!agent) {
     return (
@@ -125,6 +133,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent }) => {
       <footer className="flex-shrink-0 p-4 border-t border-adk-dark-3">
         <form onSubmit={handleSubmit} className="flex items-center bg-adk-dark-2 border border-adk-dark-3 rounded-lg p-2 focus-within:ring-2 focus-within:ring-adk-accent">
           <input
+            ref={inputRef}
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
