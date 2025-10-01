@@ -10,6 +10,8 @@ export const useManagementSocket = ({ onAgentStarted }: { onAgentStarted: (agent
   const [isConnected, setIsConnected] = useState(false);
   const ws = useRef<WebSocket | null>(null);
   const onAgentStartedRef = useRef(onAgentStarted);
+  const reconnectTimer = useRef<NodeJS.Timeout | null>(null);
+  const isInitialConnection = useRef(true);
 
   useEffect(() => {
     onAgentStartedRef.current = onAgentStarted;
@@ -21,9 +23,18 @@ export const useManagementSocket = ({ onAgentStarted }: { onAgentStarted: (agent
 
   useEffect(() => {
     const connect = async () => {
-      // 1. Fetch agents first
+      // Clear any existing reconnect timer
+      if (reconnectTimer.current) {
+        clearTimeout(reconnectTimer.current);
+        reconnectTimer.current = null;
+      }
+
+      // Attempt to fetch agents. If this fails, the server is likely down.
       try {
         const response = await fetch(AGENTS_URL);
+        if (!response.ok) {
+          throw new Error(`Server responded with status: ${response.status}`);
+        }
         const data = await response.json();
         const agentsWithStatus = data.map((agent: Omit<Agent, 'status'>) => ({
           ...agent,
@@ -31,23 +42,33 @@ export const useManagementSocket = ({ onAgentStarted }: { onAgentStarted: (agent
         }));
         setAgents(agentsWithStatus);
       } catch (error) {
-        console.error("Failed to fetch agents:", error);
-        appendLog('--- Error fetching agent list ---');
-        return; // Don't try to connect if fetching failed
+        console.error("Failed to fetch agents, retrying in 3s:", error);
+        appendLog('--- Management server offline, trying to connect... ---');
+        setIsConnected(false);
+        reconnectTimer.current = setTimeout(connect, 3000);
+        return;
       }
 
-      // 2. Now, connect to WebSocket
+      // If fetching agents is successful, connect to WebSocket
       ws.current = new WebSocket(MANAGEMENT_URL);
 
       ws.current.onopen = () => {
         setIsConnected(true);
-        appendLog('--- Connected to management server ---');
+        if (!isInitialConnection.current) {
+          appendLog('--- Reconnected to management server ---');
+        }
+        isInitialConnection.current = false;
       };
 
       ws.current.onclose = () => {
         setIsConnected(false);
-        appendLog('--- Disconnected from management server ---');
+        appendLog('--- Disconnected. Attempting to reconnect... ---');
         setAgents(prev => prev.map(a => ({ ...a, status: AgentStatus.STOPPED, url: undefined })));
+        // Don't use a timer here, as the fetch logic handles retries.
+        // Instead, we'll trigger a reconnect directly.
+        if (!reconnectTimer.current) {
+            reconnectTimer.current = setTimeout(connect, 3000);
+        }
       };
 
       ws.current.onmessage = (event) => {
@@ -100,7 +121,7 @@ export const useManagementSocket = ({ onAgentStarted }: { onAgentStarted: (agent
       ws.current.onerror = (error) => {
         console.error('WebSocket error:', error);
         appendLog('--- WebSocket connection error ---');
-        setIsConnected(false);
+        ws.current?.close(); // This will trigger the onclose handler for reconnection
       };
     };
 
@@ -108,6 +129,9 @@ export const useManagementSocket = ({ onAgentStarted }: { onAgentStarted: (agent
 
     // Cleanup on unmount
     return () => {
+      if (reconnectTimer.current) {
+        clearTimeout(reconnectTimer.current);
+      }
       ws.current?.close();
     };
   }, []);

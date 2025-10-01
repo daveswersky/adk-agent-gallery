@@ -379,8 +379,11 @@ async def start_agent_with_error_handling(agent_name: str, port: int):
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     
-    # Upon connection, send the current status of all running agents to the new client
     try:
+        # Send a welcome message to the newly connected client
+        await websocket.send_text(json.dumps({"type": "log", "agent": "server", "line": "Connection established."}))
+
+        # Upon connection, send the current status of all running agents to the new client
         for agent_name, agent_info in running_processes.items():
             status__message = {
                 "type": "status",
