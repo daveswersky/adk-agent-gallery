@@ -1,4 +1,5 @@
 import React from 'react';
+import { Flipper, Flipped } from 'react-flip-toolkit';
 import { Agent, AgentStatus } from '../types';
 import { PlayIcon, StopIcon, SpinnerIcon } from './icons';
 
@@ -44,13 +45,11 @@ const AgentListItem: React.FC<{
   isActive: boolean;
 }> = ({ agent, onStart, onStop, onSelect, isActive }) => {
   const isRunning = agent.status === AgentStatus.RUNNING;
-  const isStopped = agent.status === AgentStatus.STOPPED;
-  const isTransient = agent.status === AgentStatus.STARTING || agent.status === AgentStatus.STOPPING;
 
   return (
     <div
       onClick={() => isRunning && onSelect(agent)}
-      className={`p-2 rounded-lg border flex flex-col transition-all duration-200 ${isActive ? 'bg-adk-accent/20 border-adk-accent' : 'border-adk-dark-3 hover:bg-adk-dark-3'} ${isRunning ? 'cursor-pointer' : 'opacity-70 cursor-default'}`}
+      className={`p-2 rounded-lg border flex flex-col transition-colors duration-200 ${isActive ? 'bg-adk-accent/20 border-adk-accent' : 'border-adk-dark-3 hover:bg-adk-dark-3'} ${isRunning ? 'cursor-pointer' : ''}`}
     >
       <div className="flex justify-between items-center mb-1">
         <h4 className="font-semibold text-adk-text truncate pr-2 text-base">{agent.name}</h4>
@@ -102,23 +101,26 @@ export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agents, selectedAgen
         </div>
       </header>
       <div className="flex-1 overflow-y-auto p-4">
-        <div className="space-y-4">
+        <Flipper flipKey={sortedAgents.map(a => a.id).join('')} className="space-y-4">
           {sortedAgents.length > 0 ? sortedAgents.map((agent) => (
-            <AgentListItem
-              key={agent.id}
-              agent={agent}
-              onStart={onStart}
-              onStop={onStop}
-              onSelect={onSelectAgent}
-              isActive={selectedAgent?.id === agent.id}
-            />
+            <Flipped key={agent.id} flipId={agent.id}>
+              <div>
+                <AgentListItem
+                  agent={agent}
+                  onStart={onStart}
+                  onStop={onStop}
+                  onSelect={onSelectAgent}
+                  isActive={selectedAgent?.id === agent.id}
+                />
+              </div>
+            </Flipped>
           )) : (
             <div className="text-center py-12 text-adk-text-secondary">
               <SpinnerIcon className="w-8 h-8 mx-auto animate-spin-slow mb-4" />
               <p>Waiting for agent data...</p>
             </div>
           )}
-        </div>
+        </Flipper>
       </div>
     </aside>
   );
