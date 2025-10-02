@@ -63,7 +63,7 @@ class Session {
         const responseBody = await response.text();
 
         // Pass the original request to be cloned inside recordRequest
-        await this.recordRequest(request, responseClone, responseBody);
+        await this.recordRequest(request.clone(), responseClone, responseBody);
 
         if (!response.ok) {
             throw new Error(`Failed to create session: ${response.statusText} - ${responseBody}`);
@@ -71,7 +71,7 @@ class Session {
     }
 
     private formatToolResponse(text: string): string {
-        const toolReportRegex = /(?:\\\[.*?\\\\]|\\w+)\\s+tool reported:\\s*/s;
+        const toolReportRegex = /(?:\\[.*?\\]|\w+)\s+tool reported:\s*/s;
         if (toolReportRegex.test(text)) {
             const parts = text.split(toolReportRegex);
             const introText = parts[0].trim();
@@ -97,22 +97,24 @@ class Session {
         };
 
         const request = new Request(url, options);
-        const requestClone = request.clone(); // Clone the request here
+        const requestClone = request.clone();
         const response = await fetch(request);
+        const responseClone = response.clone();
         
-        await this.recordRequest(requestClone, response.clone(), "Streaming response...");
+        await this.recordRequest(requestClone, responseClone, "Streaming response...");
 
         if (!response.ok || !response.body) {
             const errorText = await response.text();
             console.error("Error response from server:", errorText);
             this.requestHistory.pop();
-            await this.recordRequest(requestClone, response.clone(), errorText);
+            await this.recordRequest(requestClone, responseClone, errorText);
             throw new Error(`Failed to run turn: ${response.statusText}`);
         }
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
+        let fullResponse = '';
 
         const processLine = function*(line: string): Generator<any> {
             if (line.trim() === '') return;
@@ -134,7 +136,10 @@ class Session {
             const { done, value } = await reader.read();
             if (done) break;
 
-            buffer += decoder.decode(value, { stream: true });
+            const chunk = decoder.decode(value, { stream: true });
+            buffer += chunk;
+            fullResponse += chunk;
+
             const lines = buffer.split('\n');
             buffer = lines.pop() || '';
 
@@ -171,6 +176,9 @@ class Session {
                 }
             }
         }
+
+        this.requestHistory.pop();
+        await this.recordRequest(requestClone, responseClone, fullResponse);
     }
 }
 

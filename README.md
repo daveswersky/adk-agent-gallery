@@ -1,6 +1,6 @@
 # Agent Gallery
 
-This project is a web-based "Agent Gallery" that allows users to manage and interact with various AI agents. The application consists of a React frontend and a Python FastAPI backend. Users can view a list of available agents, start and stop them, and see their log output in real-time. When an agent is running, a chat interface is provided to interact with it.
+This project is a web-based Agent Gallery that allows users to manage and interact with various agents based on the Agent Development Kit. The application consists of a React frontend and a Python FastAPI backend. Users can view a list of available agents, start and stop them, and see their log output in real-time. When an agent is running, a chat interface is provided to interact with it.
 
 ## Architecture
 

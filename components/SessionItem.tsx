@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { RequestRecord } from '../types';
-import { ChevronDownIcon, ChevronRightIcon } from './icons';
+import { ChevronDownIcon, ChevronRightIcon, CopyIcon } from './icons';
 
 interface SessionItemProps {
   session: {
@@ -13,6 +13,7 @@ interface SessionItemProps {
 
 const RequestDetails: React.FC<{ record: RequestRecord }> = ({ record }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [copyStatus, setCopyStatus] = useState<'request' | 'response' | null>(null);
 
   const formatJson = (jsonString: string) => {
     try {
@@ -22,6 +23,16 @@ const RequestDetails: React.FC<{ record: RequestRecord }> = ({ record }) => {
       return jsonString; // Return as is if not valid JSON
     }
   };
+
+  const handleCopy = (content: string, type: 'request' | 'response') => {
+    navigator.clipboard.writeText(content).then(() => {
+      setCopyStatus(type);
+      setTimeout(() => setCopyStatus(null), 2000); // Reset after 2 seconds
+    });
+  };
+
+  const requestContent = `URL: ${record.request.url}\nMETHOD: ${record.request.method}\nHEADERS: ${JSON.stringify(record.request.headers, null, 2)}\n\nBODY:\n${formatJson(record.request.body)}`;
+  const responseContent = `STATUS: ${record.response.status} ${record.response.statusText}\n\nBODY:\n${formatJson(record.response.body)}`;
 
   return (
     <div className="mt-2 text-xs bg-adk-dark-3 p-2 rounded-md">
@@ -36,12 +47,24 @@ const RequestDetails: React.FC<{ record: RequestRecord }> = ({ record }) => {
       {isExpanded && (
         <div className="mt-2 p-2 bg-adk-dark-4 rounded space-y-4">
           <div>
-            <h4 className="font-bold text-adk-text">Request</h4>
-            <pre className="whitespace-pre-wrap break-all bg-adk-dark p-2 rounded mt-1">{`URL: ${record.request.url}\nMETHOD: ${record.request.method}\nHEADERS: ${JSON.stringify(record.request.headers, null, 2)}\n\nBODY:\n${formatJson(record.request.body)}`}</pre>
+            <div className="flex items-center gap-x-2 mb-1">
+                <h4 className="font-bold text-adk-text">Request</h4>
+                <button onClick={() => handleCopy(requestContent, 'request')} className="flex items-center text-xs px-2 py-1 rounded bg-adk-dark-2 hover:bg-adk-dark-3 text-adk-text-secondary hover:text-adk-text transition-colors">
+                    <CopyIcon className="w-3 h-3 mr-1.5" />
+                    {copyStatus === 'request' ? 'Copied!' : 'Copy'}
+                </button>
+            </div>
+            <pre className="whitespace-pre-wrap break-all bg-adk-dark p-2 rounded">{requestContent}</pre>
           </div>
           <div>
-            <h4 className="font-bold text-adk-text">Response</h4>
-            <pre className="whitespace-pre-wrap break-all bg-adk-dark p-2 rounded mt-1">{`STATUS: ${record.response.status} ${record.response.statusText}\n\nBODY:\n${formatJson(record.response.body)}`}</pre>
+            <div className="flex items-center gap-x-2 mb-1">
+                <h4 className="font-bold text-adk-text">Response</h4>
+                <button onClick={() => handleCopy(responseContent, 'response')} className="flex items-center text-xs px-2 py-1 rounded bg-adk-dark-2 hover:bg-adk-dark-3 text-adk-text-secondary hover:text-adk-text transition-colors">
+                    <CopyIcon className="w-3 h-3 mr-1.5" />
+                    {copyStatus === 'response' ? 'Copied!' : 'Copy'}
+                </button>
+            </div>
+            <pre className="whitespace-pre-wrap break-all bg-adk-dark p-2 rounded">{responseContent}</pre>
           </div>
         </div>
       )}
