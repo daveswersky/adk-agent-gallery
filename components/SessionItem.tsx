@@ -40,7 +40,7 @@ const RequestDetails: React.FC<{ record: RequestRecord }> = ({ record }) => {
         {isExpanded ? <ChevronDownIcon className="w-4 h-4 mr-1" /> : <ChevronRightIcon className="w-4 h-4 mr-1" />}
         <span className="font-semibold">{record.request.method}</span>
         <span className="ml-2 truncate">{record.request.url}</span>
-        <span className={`ml-auto px-2 py-0.5 rounded-full text-xs font-bold ${record.response.status >= 400 ? 'bg-red-500' : 'bg-green-500'} text-white`}>
+        <span className={`ml-auto px-2 py-0.5 rounded-full text-xs font-bold ${record.response.status === 0 || record.response.status >= 400 ? 'bg-red-500' : 'bg-green-500'} text-white`}>
           {record.response.status}
         </span>
       </button>

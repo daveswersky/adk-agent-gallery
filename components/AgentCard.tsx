@@ -38,9 +38,9 @@ const StatusBadge: React.FC<{ status: AgentStatus }> = ({ status }) => {
 
 
 export const AgentCard: React.FC<AgentCardProps> = ({ agent, onStart, onStop, onSelect }) => {
-  const isRunning = agent.status === AgentStatus.RUNNING;
-  const isStopped = agent.status === AgentStatus.STOPPED;
-  const isTransient = agent.status === AgentStatus.STARTING || agent.status === AgentStatus.STOPPING;
+const { status } = agent;
+  const isRunning = status === 'RUNNING';
+  const isStopped = status === 'STOPPED';
 
   const handleCardClick = () => {
     if (isRunning) {

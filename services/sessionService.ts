@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { ChatMessage, RequestRecord } from '../types';
+import { ChatMessage, RequestRecord, HttpError } from '../types';
 
 // This type is now only used by the UI component
 export type LoadingStatus = {
@@ -47,6 +47,29 @@ class Session {
                 status: response.status,
                 statusText: response.statusText,
                 body: responseBody,
+            },
+        });
+    }
+
+    public async recordError(request: Request, error: Error): Promise<void> {
+        const requestClone = request.clone();
+        const requestBody = request.method === 'POST' ? await requestClone.text() : '';
+        const requestHeaders: Record<string, string> = {};
+        request.headers.forEach((value, key) => { requestHeaders[key] = value; });
+        const status = error instanceof HttpError ? error.status : 0;
+
+        this.requestHistory.push({
+            timestamp: new Date().toISOString(),
+            request: {
+                method: request.method,
+                url: request.url,
+                headers: requestHeaders,
+                body: requestBody,
+            },
+            response: {
+                status: status,
+                statusText: 'Error',
+                body: error.message,
             },
         });
     }

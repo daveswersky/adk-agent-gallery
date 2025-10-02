@@ -4,6 +4,8 @@ import Session, { LoadingStatus } from '../services/sessionService';
 import { sessionManager } from '../services/sessionManager';
 import { SendIcon, UserIcon, BotIcon, SpinnerIcon, TransferIcon } from './icons';
 
+import { causeError } from '../services/agentService';
+
 interface ChatInterfaceProps {
   agent: Agent | null;
 }
@@ -96,6 +98,29 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent }) => {
 
     const currentInput = input;
     setInput('');
+
+    if (currentInput === '/error') {
+        setMessages(prev => [...prev, { role: 'user', content: currentInput }]);
+        setLoadingStatus({ type: 'thinking', message: 'Triggering error...' });
+        const request = new Request(`${agent.url}/nonexistent-endpoint`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: '/error' }),
+        });
+        try {
+            await causeError(agent);
+        } catch (error) {
+            if (currentSession && error instanceof Error) {
+                currentSession.recordError(request, error);
+            }
+            const errorMessageContent = error instanceof Error ? error.message : 'An unknown error occurred.';
+            setMessages(prev => [...prev, { role: 'model', content: `Deliberate error triggered: ${errorMessageContent}` }]);
+        } finally {
+            setLoadingStatus(null);
+        }
+        return;
+    }
+
     setLoadingStatus({ type: 'thinking', message: 'Thinking...' });
     setMessages(prev => [...prev, { role: 'user', content: currentInput }]);
 
