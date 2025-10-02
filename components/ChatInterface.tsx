@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { Agent, ChatMessage } from '../types';
+import { UploadHttpError } from '../types';
 import Session, { LoadingStatus } from '../services/sessionService';
 import { sessionManager } from '../services/sessionManager';
-import { SendIcon, UserIcon, BotIcon, SpinnerIcon, TransferIcon } from './icons';
+import { SendIcon, UserIcon, BotIcon, SpinnerIcon, TransferIcon, FileUploadIcon } from './icons';
 
-import { causeError } from '../services/agentService';
+import { causeError, uploadFile } from '../services/agentService';
 
 interface ChatInterfaceProps {
   agent: Agent | null;
@@ -43,6 +44,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent }) => {
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   useEffect(() => {
     const switchSession = async () => {
@@ -91,6 +93,30 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent }) => {
         </div>
     );
   }
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0 && agent) {
+        const file = e.target.files[0];
+        setLoadingStatus({ type: 'thinking', message: `Uploading ${file.name}...` });
+        try {
+            const filename = await uploadFile(agent, file);
+            setMessages(prev => [...prev, { role: 'user', content: `File uploaded: ${file.name}. Agent sees it as: ${filename}` }]);
+            setInput(prev => `${prev} The file is named ${filename}.`);
+        } catch (error) {
+            if (currentSession && error instanceof UploadHttpError) {
+                currentSession.recordError(error.request, error);
+            }
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error during file upload.';
+            setMessages(prev => [...prev, { role: 'model', content: `File upload failed: ${errorMessage}` }]);
+        } finally {
+            setLoadingStatus(null);
+            // Reset file input so the same file can be selected again
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
+        }
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -166,6 +192,15 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent }) => {
             className="flex-1 bg-transparent px-4 py-2 text-adk-text focus:outline-none"
             disabled={!!loadingStatus}
           />
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            className="hidden"
+          />
+          <button type="button" onClick={() => fileInputRef.current?.click()} disabled={!!loadingStatus} className="p-2 rounded-md hover:bg-adk-dark-3 text-adk-text-secondary disabled:text-adk-dark-3 disabled:cursor-not-allowed transition-colors">
+            <FileUploadIcon className="w-6 h-6" />
+          </button>
           <button type="submit" disabled={!!loadingStatus || !input.trim()} className="p-2 rounded-md bg-adk-accent hover:bg-adk-accent-hover text-white disabled:bg-adk-dark-3 disabled:text-adk-text-secondary disabled:cursor-not-allowed transition-colors">
             <SendIcon className="w-6 h-6" />
           </button>

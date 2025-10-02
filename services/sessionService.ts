@@ -29,9 +29,16 @@ class Session {
     }
 
     private async recordRequest(request: Request, response: Response, responseBody: string): Promise<void> {
-        // Clone the request to read its body, as the body can only be read once.
         const requestClone = request.clone();
-        const requestBody = request.method === 'POST' ? await requestClone.text() : '';
+        let requestBody = '';
+        if (request.method === 'POST') {
+            const contentType = request.headers.get('Content-Type') || '';
+            if (contentType.includes('multipart/form-data')) {
+                requestBody = '[File Upload Data]';
+            } else {
+                requestBody = await requestClone.text();
+            }
+        }
         const requestHeaders: Record<string, string> = {};
         request.headers.forEach((value, key) => { requestHeaders[key] = value; });
 
@@ -53,7 +60,19 @@ class Session {
 
     public async recordError(request: Request, error: Error): Promise<void> {
         const requestClone = request.clone();
-        const requestBody = request.method === 'POST' ? await requestClone.text() : '';
+        let requestBody = '';
+        if (request.method === 'POST') {
+            const contentType = request.headers.get('Content-Type') || '';
+            if (contentType.includes('multipart/form-data')) {
+                requestBody = '[File Upload Data]';
+            } else {
+                try {
+                    requestBody = await requestClone.text();
+                } catch (e) {
+                    requestBody = '[Could not read body]';
+                }
+            }
+        }
         const requestHeaders: Record<string, string> = {};
         request.headers.forEach((value, key) => { requestHeaders[key] = value; });
         const status = error instanceof HttpError ? error.status : 0;
