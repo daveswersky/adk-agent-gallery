@@ -72,7 +72,7 @@ async def get_agents():
                         with open(agent_py_path, "r") as f:
                             content = f.read()
                             # Use regex to find the description in the LlmAgent constructor
-                            match = re.search(r'description="([^"]+)"', content)
+                            match = re.search(r'description=\(?\s*["\']([^"\']+)["\']', content, re.DOTALL)
                             if match:
                                 description = match.group(1)
                     except Exception as e:

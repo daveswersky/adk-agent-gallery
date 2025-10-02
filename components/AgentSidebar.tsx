@@ -80,6 +80,8 @@ const AgentListItem: React.FC<{
 
 
 export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agents, selectedAgent, isConnected, onStart, onStop, onSelectAgent }) => {
+  const [searchTerm, setSearchTerm] = React.useState('');
+
   const sortedAgents = [...agents].sort((a, b) => {
     const statusOrder = {
       [AgentStatus.RUNNING]: 1,
@@ -91,6 +93,10 @@ export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agents, selectedAgen
     return (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
   });
 
+  const filteredAgents = sortedAgents.filter(agent =>
+    agent.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <aside className="w-full h-full bg-adk-dark-2 flex flex-col border-r border-adk-dark-3">
       <header className="p-4 border-b border-adk-dark-3 flex-shrink-0">
@@ -99,10 +105,17 @@ export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agents, selectedAgen
             <div className={`w-3 h-3 rounded-full animate-pulse ${isConnected ? 'bg-status-running' : 'bg-status-stopped'}`}></div>
             <p className="text-sm text-adk-text-secondary">{isConnected ? 'Connected' : 'Disconnected'}</p>
         </div>
+        <input
+          type="text"
+          placeholder="Search agents..."
+          className="w-full p-2 mt-4 bg-adk-dark border border-adk-dark-3 rounded-md text-white placeholder-adk-text-secondary focus:outline-none focus:ring-2 focus:ring-adk-accent"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
       </header>
       <div className="flex-1 overflow-y-auto p-4">
-        <Flipper flipKey={sortedAgents.map(a => a.id).join('')} className="space-y-4">
-          {sortedAgents.length > 0 ? sortedAgents.map((agent) => (
+        <Flipper flipKey={filteredAgents.map(a => a.id).join('')} className="space-y-4">
+          {filteredAgents.length > 0 ? filteredAgents.map((agent) => (
             <Flipped key={agent.id} flipId={agent.id}>
               <div>
                 <AgentListItem
@@ -116,8 +129,14 @@ export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agents, selectedAgen
             </Flipped>
           )) : (
             <div className="text-center py-12 text-adk-text-secondary">
-              <SpinnerIcon className="w-8 h-8 mx-auto animate-spin-slow mb-4" />
-              <p>Waiting for agent data...</p>
+              {agents.length > 0 && searchTerm ? (
+                <p>No agents found for "{searchTerm}"</p>
+              ) : (
+                <>
+                  <SpinnerIcon className="w-8 h-8 mx-auto animate-spin-slow mb-4" />
+                  <p>Waiting for agent data...</p>
+                </>
+              )}
             </div>
           )}
         </Flipper>
