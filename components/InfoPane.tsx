@@ -3,6 +3,7 @@ import { Agent, AgentStatus } from '../types';
 import { LogViewer } from './LogViewer';
 import { SpinnerIcon } from './icons';
 import { sessionManager } from '../services/sessionManager';
+import { SessionItem } from './SessionItem';
 
 interface InfoPaneProps {
   logs: string[];
@@ -28,7 +29,7 @@ const StatusIndicator: React.FC<{ status: AgentStatus }> = ({ status }) => {
 };
 
 export const InfoPane: React.FC<InfoPaneProps> = ({ logs, agents, selectedAgent }) => {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('Events');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('Sessions');
 
   const filteredLogs = useMemo(() => {
     if (!selectedAgent) {
@@ -87,11 +88,7 @@ export const InfoPane: React.FC<InfoPaneProps> = ({ logs, agents, selectedAgent 
           <div className="p-4 font-mono text-sm text-adk-text-secondary space-y-2 h-full overflow-y-auto">
             {activeSessions.length > 0 ? (
               activeSessions.map(session => (
-                <div key={session.sessionId} className="grid grid-cols-[1fr,2fr,auto] items-center gap-x-4 p-2 rounded bg-adk-dark-2">
-                   <span className="font-semibold text-adk-text truncate" title={session.agentId}>{session.agentId}</span>
-                   <span className="text-xs truncate" title={session.sessionId}>{session.sessionId}</span>
-                   <span className="text-xs">{session.historyCount} messages</span>
-                </div>
+                <SessionItem key={session.sessionId} session={session} />
               ))
             ) : (
               <div className="flex items-center justify-center h-full">

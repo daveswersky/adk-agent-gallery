@@ -50,3 +50,18 @@ export interface StopAgentCommand {
 }
 
 export type ClientCommand = StartAgentCommand | StopAgentCommand;
+
+export interface RequestRecord {
+  timestamp: string;
+  request: {
+    method: string;
+    url: string;
+    headers: Record<string, string>;
+    body: string;
+  };
+  response: {
+    status: number;
+    statusText: string;
+    body: string;
+  };
+}

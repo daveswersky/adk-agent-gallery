@@ -22,8 +22,9 @@ class SessionManager {
     getSessionDetails() {
         return Array.from(this.sessions.entries()).map(([agentId, session]) => ({
             agentId,
-            sessionId: session['sessionId'], // Accessing private property for display
+            sessionId: session.sessionId, // Accessing private property for display
             historyCount: session.history.length,
+            requestHistory: session.requestHistory,
         }));
     }
 }

@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { ChatMessage } from '../types';
+import { ChatMessage, RequestRecord } from '../types';
 
 // This type is now only used by the UI component
 export type LoadingStatus = {
@@ -19,6 +19,7 @@ class Session {
     private agentName: string;
     private userId: string;
     public history: ChatMessage[] = [];
+    public requestHistory: RequestRecord[] = [];
 
     constructor(agentUrl: string, agentName: string) {
         this.sessionId = uuidv4();
@@ -27,15 +28,45 @@ class Session {
         this.userId = "forusone";
     }
 
+    private async recordRequest(request: Request, response: Response, responseBody: string): Promise<void> {
+        // Clone the request to read its body, as the body can only be read once.
+        const requestClone = request.clone();
+        const requestBody = request.method === 'POST' ? await requestClone.text() : '';
+        const requestHeaders: Record<string, string> = {};
+        request.headers.forEach((value, key) => { requestHeaders[key] = value; });
+
+        this.requestHistory.push({
+            timestamp: new Date().toISOString(),
+            request: {
+                method: request.method,
+                url: request.url,
+                headers: requestHeaders,
+                body: requestBody,
+            },
+            response: {
+                status: response.status,
+                statusText: response.statusText,
+                body: responseBody,
+            },
+        });
+    }
+
     async create(): Promise<void> {
         const url = `${this.agentUrl}/apps/${this.agentName.replace(/-/g, '_')}/users/${this.userId}/sessions/${this.sessionId}`;
         const options = {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
         };
-        const response = await fetch(url, options);
+        const request = new Request(url, options);
+        const response = await fetch(request);
+        const responseClone = response.clone(); // Clone the response here
+        const responseBody = await response.text();
+
+        // Pass the original request to be cloned inside recordRequest
+        await this.recordRequest(request, responseClone, responseBody);
+
         if (!response.ok) {
-            throw new Error(`Failed to create session: ${response.statusText}`);
+            throw new Error(`Failed to create session: ${response.statusText} - ${responseBody}`);
         }
     }
 
@@ -65,10 +96,17 @@ class Session {
             body: JSON.stringify(body),
         };
 
-        const response = await fetch(url, options);
+        const request = new Request(url, options);
+        const requestClone = request.clone(); // Clone the request here
+        const response = await fetch(request);
+        
+        await this.recordRequest(requestClone, response.clone(), "Streaming response...");
+
         if (!response.ok || !response.body) {
             const errorText = await response.text();
             console.error("Error response from server:", errorText);
+            this.requestHistory.pop();
+            await this.recordRequest(requestClone, response.clone(), errorText);
             throw new Error(`Failed to run turn: ${response.statusText}`);
         }
 
@@ -117,7 +155,6 @@ class Session {
                 }
             }
         }
-        // Final buffer processing
         if (buffer.trim()) {
             for (const event of processLine(buffer)) {
                  if (event.content?.parts) {
