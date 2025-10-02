@@ -1,11 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { Agent, ChatMessage } from '../types';
-import { UploadHttpError } from '../types';
 import Session, { LoadingStatus } from '../services/sessionService';
 import { sessionManager } from '../services/sessionManager';
 import { SendIcon, UserIcon, BotIcon, SpinnerIcon, TransferIcon, FileUploadIcon } from './icons';
 
-import { causeError, uploadFile } from '../services/agentService';
+import { causeError } from '../services/agentService';
 
 interface ChatInterfaceProps {
   agent: Agent | null;
@@ -42,6 +41,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent }) => {
   const [input, setInput] = useState('');
   const [loadingStatus, setLoadingStatus] = useState<LoadingStatus | null>(null);
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -94,36 +94,25 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent }) => {
     );
   }
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0 && agent) {
-        const file = e.target.files[0];
-        setLoadingStatus({ type: 'thinking', message: `Uploading ${file.name}...` });
-        try {
-            const filename = await uploadFile(agent, file);
-            setMessages(prev => [...prev, { role: 'user', content: `File uploaded: ${file.name}. Agent sees it as: ${filename}` }]);
-            setInput(prev => `${prev} The file is named ${filename}.`);
-        } catch (error) {
-            if (currentSession && error instanceof UploadHttpError) {
-                currentSession.recordError(error.request, error);
-            }
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error during file upload.';
-            setMessages(prev => [...prev, { role: 'model', content: `File upload failed: ${errorMessage}` }]);
-        } finally {
-            setLoadingStatus(null);
-            // Reset file input so the same file can be selected again
-            if (fileInputRef.current) {
-                fileInputRef.current.value = '';
-            }
-        }
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+        setSelectedFile(e.target.files[0]);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || loadingStatus || !currentSession) return;
+    if ((!input.trim() && !selectedFile) || loadingStatus || !currentSession) return;
 
-    const currentInput = input;
+    let currentInput = input;
+    const currentFile = selectedFile;
+
+    if (currentFile && !currentInput.trim()) {
+      currentInput = "Here's the file.";
+    }
+
     setInput('');
+    setSelectedFile(null);
 
     if (currentInput === '/error') {
         setMessages(prev => [...prev, { role: 'user', content: currentInput }]);
@@ -151,7 +140,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent }) => {
     setMessages(prev => [...prev, { role: 'user', content: currentInput }]);
 
     try {
-        for await (const event of currentSession.runTurn(currentInput)) {
+        for await (const event of currentSession.runTurn(currentInput, currentFile)) {
             if (event.type === 'tool_call') {
                 const toolName = event.content.name.split('_').slice(0, -1).join(' ');
                 setLoadingStatus({ type: 'tool_use', message: `Using ${toolName} tool...` });
@@ -201,10 +190,15 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent }) => {
           <button type="button" onClick={() => fileInputRef.current?.click()} disabled={!!loadingStatus} className="p-2 rounded-md hover:bg-adk-dark-3 text-adk-text-secondary disabled:text-adk-dark-3 disabled:cursor-not-allowed transition-colors">
             <FileUploadIcon className="w-6 h-6" />
           </button>
-          <button type="submit" disabled={!!loadingStatus || !input.trim()} className="p-2 rounded-md bg-adk-accent hover:bg-adk-accent-hover text-white disabled:bg-adk-dark-3 disabled:text-adk-text-secondary disabled:cursor-not-allowed transition-colors">
+          <button type="submit" disabled={!!loadingStatus || (!input.trim() && !selectedFile)} className="p-2 rounded-md bg-adk-accent hover:bg-adk-accent-hover text-white disabled:bg-adk-dark-3 disabled:text-adk-text-secondary disabled:cursor-not-allowed transition-colors">
             <SendIcon className="w-6 h-6" />
           </button>
         </form>
+        {selectedFile && (
+            <div className="text-xs text-adk-text-secondary mt-2">
+                Selected file: {selectedFile.name}
+            </div>
+        )}
       </footer>
     </div>
   );

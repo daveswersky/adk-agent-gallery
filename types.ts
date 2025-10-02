@@ -16,15 +16,6 @@ export class HttpError extends Error {
   }
 }
 
-export class UploadHttpError extends HttpError {
-    request: Request;
-    constructor(message: string, status: number, request: Request) {
-        super(message, status);
-        this.name = 'UploadHttpError';
-        this.request = request;
-    }
-}
-
 export interface Agent {
   id: string;
   name: string;

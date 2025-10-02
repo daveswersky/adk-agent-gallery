@@ -13,6 +13,20 @@ export type AgentEvent = {
     content: any;
 };
 
+const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => {
+            const result = reader.result as string;
+            // Remove the data URL prefix (e.g., "data:image/png;base64,")
+            const base64 = result.split(',')[1];
+            resolve(base64);
+        };
+        reader.onerror = (error) => reject(error);
+    });
+};
+
 class Session {
     public sessionId: string;
     private agentUrl: string;
@@ -29,16 +43,9 @@ class Session {
     }
 
     private async recordRequest(request: Request, response: Response, responseBody: string): Promise<void> {
+        // Clone the request to read its body, as the body can only be read once.
         const requestClone = request.clone();
-        let requestBody = '';
-        if (request.method === 'POST') {
-            const contentType = request.headers.get('Content-Type') || '';
-            if (contentType.includes('multipart/form-data')) {
-                requestBody = '[File Upload Data]';
-            } else {
-                requestBody = await requestClone.text();
-            }
-        }
+        const requestBody = request.method === 'POST' ? await requestClone.text() : '';
         const requestHeaders: Record<string, string> = {};
         request.headers.forEach((value, key) => { requestHeaders[key] = value; });
 
@@ -60,19 +67,7 @@ class Session {
 
     public async recordError(request: Request, error: Error): Promise<void> {
         const requestClone = request.clone();
-        let requestBody = '';
-        if (request.method === 'POST') {
-            const contentType = request.headers.get('Content-Type') || '';
-            if (contentType.includes('multipart/form-data')) {
-                requestBody = '[File Upload Data]';
-            } else {
-                try {
-                    requestBody = await requestClone.text();
-                } catch (e) {
-                    requestBody = '[Could not read body]';
-                }
-            }
-        }
+        const requestBody = request.method === 'POST' ? await requestClone.text() : '';
         const requestHeaders: Record<string, string> = {};
         request.headers.forEach((value, key) => { requestHeaders[key] = value; });
         const status = error instanceof HttpError ? error.status : 0;
@@ -123,13 +118,35 @@ class Session {
         return text;
     }
 
-    async *runTurn(prompt: string): AsyncGenerator<AgentEvent> {
+    async *runTurn(prompt: string, file: File | null = null): AsyncGenerator<AgentEvent> {
         const url = `${this.agentUrl}/run`;
+        
+        const parts: Array<any> = [{ text: prompt }];
+        let historyPrompt = prompt;
+
+        if (file) {
+            try {
+                const base64String = await fileToBase64(file);
+                parts.push({
+                    inline_data: {
+                        mime_type: file.type,
+                        data: base64String,
+                        display_name: file.name,
+                    },
+                });
+                // Add a reference to the file in the prompt for history
+                historyPrompt += `\n[File attached: ${file.name}]`;
+            } catch (error) {
+                console.error("Error encoding file to Base64:", error);
+                throw new Error("Failed to process file for upload.");
+            }
+        }
+
         const body = {
             app_name: this.agentName.replace(/-/g, '_'),
             user_id: this.userId,
             session_id: this.sessionId,
-            new_message: { role: 'user', parts: [{ text: prompt }] },
+            new_message: { role: 'user', parts: parts },
             stream: true,
         };
         const options = {
@@ -194,7 +211,7 @@ class Session {
                         }
                         if (part.text) {
                             const formattedAnswer = this.formatToolResponse(part.text);
-                            this.history.push({ role: 'user', content: prompt });
+                            this.history.push({ role: 'user', content: historyPrompt });
                             this.history.push({ role: 'model', content: formattedAnswer });
                             yield { type: 'final_answer', content: formattedAnswer };
                         }
@@ -211,7 +228,7 @@ class Session {
                     }
                     if (part.text) {
                         const formattedAnswer = this.formatToolResponse(part.text);
-                        this.history.push({ role: 'user', content: prompt });
+                        this.history.push({ role: 'user', content: historyPrompt });
                         this.history.push({ role: 'model', content: formattedAnswer });
                         yield { type: 'final_answer', content: formattedAnswer };
                     }
