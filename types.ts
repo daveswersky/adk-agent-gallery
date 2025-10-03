@@ -25,7 +25,7 @@ export interface Agent {
 }
 
 export interface ChatMessage {
-  role: 'user' | 'model';
+  role: 'user' | 'model' | 'tool';
   content: string;
 }
 

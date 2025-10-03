@@ -9,8 +9,9 @@ export type LoadingStatus = {
 
 // A type for the events we yield from the stream
 export type AgentEvent = {
-    type: 'tool_call' | 'final_answer' | 'error';
+    type: 'tool_call' | 'tool_result' | 'final_answer' | 'error';
     content: any;
+    name?: string;
 };
 
 const fileToBase64 = (file: File): Promise<string> => {
@@ -160,6 +161,7 @@ class Session {
         const response = await fetch(request);
         const responseClone = response.clone();
         
+        this.history.push({ role: 'user', content: historyPrompt });
         await this.recordRequest(requestClone, responseClone, "Streaming response...");
 
         if (!response.ok || !response.body) {
@@ -191,6 +193,31 @@ class Session {
             }
         };
 
+        let finalAnswer = '';
+        const self = this; // To access 'this' inside the generator
+        const processEvent = function*(event: any): Generator<AgentEvent> {
+            if (event.content?.role === 'tool') {
+                for (const part of event.content.parts) {
+                    if (part.functionResponse) {
+                        self.history.push({ role: 'tool', content: `Tool ${part.functionResponse.name} returned:\n${JSON.stringify(part.functionResponse.response, null, 2)}` });
+                        yield { type: 'tool_result', name: part.functionResponse.name, content: part.functionResponse.response };
+                    }
+                }
+            } else if (event.content?.role === 'model') {
+                for (const part of event.content.parts) {
+                    if (part.functionCall) {
+                        self.history.push({ role: 'tool', content: `Calling tool: ${part.functionCall.name}\nArguments:\n${JSON.stringify(part.functionCall.args, null, 2)}` });
+                        yield { type: 'tool_call', content: part.functionCall };
+                    }
+                    if (part.text) {
+                        finalAnswer = part.text;
+                        self.history.push({ role: 'model', content: self.formatToolResponse(finalAnswer) });
+                        yield { type: 'final_answer', content: finalAnswer };
+                    }
+                }
+            }
+        };
+
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
@@ -204,35 +231,13 @@ class Session {
 
             for (const line of lines) {
                 for (const event of processLine(line)) {
-                    if (event.content?.parts) {
-                        const part = event.content.parts[0];
-                        if (part.functionCall) {
-                            yield { type: 'tool_call', content: part.functionCall };
-                        }
-                        if (part.text) {
-                            const formattedAnswer = this.formatToolResponse(part.text);
-                            this.history.push({ role: 'user', content: historyPrompt });
-                            this.history.push({ role: 'model', content: formattedAnswer });
-                            yield { type: 'final_answer', content: formattedAnswer };
-                        }
-                    }
+                    yield* processEvent(event);
                 }
             }
         }
         if (buffer.trim()) {
             for (const event of processLine(buffer)) {
-                 if (event.content?.parts) {
-                    const part = event.content.parts[0];
-                    if (part.functionCall) {
-                        yield { type: 'tool_call', content: part.functionCall };
-                    }
-                    if (part.text) {
-                        const formattedAnswer = this.formatToolResponse(part.text);
-                        this.history.push({ role: 'user', content: historyPrompt });
-                        this.history.push({ role: 'model', content: formattedAnswer });
-                        yield { type: 'final_answer', content: formattedAnswer };
-                    }
-                }
+                yield* processEvent(event);
             }
         }
 

@@ -24,11 +24,37 @@ const RequestDetails: React.FC<{ record: RequestRecord }> = ({ record }) => {
     }
   };
 
-  const handleCopy = (content: string, type: 'request' | 'response') => {
+  const handleCopy = (type: 'request' | 'response') => {
+    let content = '';
+    if (type === 'request') {
+        content = generateCurlCommand(record);
+    } else {
+        content = `STATUS: ${record.response.status} ${record.response.statusText}\n\nBODY:\n${formatJson(record.response.body)}`;
+    }
+
     navigator.clipboard.writeText(content).then(() => {
       setCopyStatus(type);
       setTimeout(() => setCopyStatus(null), 2000); // Reset after 2 seconds
     });
+  };
+
+  const generateCurlCommand = (record: RequestRecord) => {
+    const { request } = record;
+    let curl = `curl -X ${request.method} '${request.url}' \\\n`;
+
+    for (const [key, value] of Object.entries(request.headers)) {
+        curl += `  -H '${key}: ${value}' \\\n`;
+    }
+
+    if (request.body && request.body !== '[File Upload Data]') {
+        // For JSON, escape single quotes for the shell
+        const escapedBody = request.body.replace(/'/g, "'\\''");
+        curl += `  -d '${escapedBody}'`;
+    } else if (request.body) {
+        curl += `  -d '[File Upload Data]'`
+    }
+
+    return curl.trim().endsWith('\\') ? curl.trim().slice(0, -1) : curl.trim();
   };
 
   const requestContent = `URL: ${record.request.url}\nMETHOD: ${record.request.method}\nHEADERS: ${JSON.stringify(record.request.headers, null, 2)}\n\nBODY:\n${formatJson(record.request.body)}`;
@@ -49,9 +75,9 @@ const RequestDetails: React.FC<{ record: RequestRecord }> = ({ record }) => {
           <div>
             <div className="flex items-center gap-x-2 mb-1">
                 <h4 className="font-bold text-adk-text">Request</h4>
-                <button onClick={() => handleCopy(requestContent, 'request')} className="flex items-center text-xs px-2 py-1 rounded bg-adk-dark-2 hover:bg-adk-dark-3 text-adk-text-secondary hover:text-adk-text transition-colors">
+                <button onClick={() => handleCopy('request')} className="flex items-center text-xs px-2 py-1 rounded bg-adk-dark-2 hover:bg-adk-dark-3 text-adk-text-secondary hover:text-adk-text transition-colors">
                     <CopyIcon className="w-3 h-3 mr-1.5" />
-                    {copyStatus === 'request' ? 'Copied!' : 'Copy'}
+                    {copyStatus === 'request' ? 'Copied!' : 'Copy cURL'}
                 </button>
             </div>
             <pre className="whitespace-pre-wrap break-all bg-adk-dark p-2 rounded">{requestContent}</pre>
@@ -59,7 +85,7 @@ const RequestDetails: React.FC<{ record: RequestRecord }> = ({ record }) => {
           <div>
             <div className="flex items-center gap-x-2 mb-1">
                 <h4 className="font-bold text-adk-text">Response</h4>
-                <button onClick={() => handleCopy(responseContent, 'response')} className="flex items-center text-xs px-2 py-1 rounded bg-adk-dark-2 hover:bg-adk-dark-3 text-adk-text-secondary hover:text-adk-text transition-colors">
+                <button onClick={() => handleCopy('response')} className="flex items-center text-xs px-2 py-1 rounded bg-adk-dark-2 hover:bg-adk-dark-3 text-adk-text-secondary hover:text-adk-text transition-colors">
                     <CopyIcon className="w-3 h-3 mr-1.5" />
                     {copyStatus === 'response' ? 'Copied!' : 'Copy'}
                 </button>

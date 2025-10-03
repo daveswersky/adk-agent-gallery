@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import type { Agent, ChatMessage } from '../types';
 import Session, { LoadingStatus } from '../services/sessionService';
 import { sessionManager } from '../services/sessionManager';
-import { SendIcon, UserIcon, BotIcon, SpinnerIcon, TransferIcon, FileUploadIcon } from './icons';
+import { SendIcon, UserIcon, BotIcon, SpinnerIcon, TransferIcon, FileUploadIcon, ToolIcon } from './icons';
 
 import { causeError } from '../services/agentService';
 
@@ -12,13 +12,33 @@ interface ChatInterfaceProps {
 
 const ChatBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
     const isUser = message.role === 'user';
+    const isTool = message.role === 'tool';
+
+    const getIcon = () => {
+        if (isUser) return <UserIcon className="w-5 h-5 text-adk-text" />;
+        if (isTool) return <ToolIcon className="w-5 h-5 text-white" />;
+        return <BotIcon className="w-5 h-5 text-white" />;
+    };
+
+    const getBubbleColor = () => {
+        if (isUser) return 'bg-adk-accent text-white';
+        if (isTool) return 'bg-adk-dark-3 text-adk-text-secondary';
+        return 'bg-adk-dark-2 text-adk-text';
+    };
+
+    const getIconBgColor = () => {
+        if (isUser) return 'bg-adk-dark-3';
+        if (isTool) return 'bg-adk-accent-dark';
+        return 'bg-adk-accent';
+    };
+
     return (
         <div className={`flex items-start gap-4 ${isUser ? 'justify-end' : 'justify-start'}`}>
-            {!isUser && <div className="flex-shrink-0 w-8 h-8 rounded-full bg-adk-accent flex items-center justify-center"><BotIcon className="w-5 h-5 text-white" /></div>}
-            <div className={`max-w-3xl p-4 rounded-lg shadow-md ${isUser ? 'bg-adk-accent text-white' : 'bg-adk-dark-2 text-adk-text'}`}>
+            {!isUser && <div className={`flex-shrink-0 w-8 h-8 rounded-full ${getIconBgColor()} flex items-center justify-center`}>{getIcon()}</div>}
+            <div className={`max-w-3xl p-4 rounded-lg shadow-md ${getBubbleColor()}`}>
                 <p className="whitespace-pre-wrap">{message.content}</p>
             </div>
-            {isUser && <div className="flex-shrink-0 w-8 h-8 rounded-full bg-adk-dark-3 flex items-center justify-center"><UserIcon className="w-5 h-5 text-adk-text" /></div>}
+            {isUser && <div className={`flex-shrink-0 w-8 h-8 rounded-full ${getIconBgColor()} flex items-center justify-center`}>{getIcon()}</div>}
         </div>
     );
 };
@@ -137,20 +157,23 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent }) => {
     }
 
     setLoadingStatus({ type: 'thinking', message: 'Thinking...' });
-    setMessages(prev => [...prev, { role: 'user', content: currentInput }]);
-
+    
     try {
         for await (const event of currentSession.runTurn(currentInput, currentFile)) {
             if (event.type === 'tool_call') {
-                const toolName = event.content.name.split('_').slice(0, -1).join(' ');
+                const toolName = event.content.name;
                 setLoadingStatus({ type: 'tool_use', message: `Using ${toolName} tool...` });
+                setMessages([...currentSession.history]);
+            } else if (event.type === 'tool_result') {
+                setLoadingStatus({ type: 'thinking', message: 'Thinking...' });
+                setMessages([...currentSession.history]);
             } else if (event.type === 'final_answer') {
+                // The session service now manages the history, so we just sync it.
                 setMessages([...currentSession.history]);
             }
         }
     } catch (error) {
         const errorMessageContent = error instanceof Error ? error.message : 'Sorry, there was an error processing your request.';
-        // The history is now managed by the session service, so we just sync it.
         setMessages([...currentSession.history, { role: 'model', content: errorMessageContent }]);
         console.error(error);
     } finally {
