@@ -9,6 +9,7 @@ interface AgentSidebarProps {
   isConnected: boolean;
   onStart: (id: string) => void;
   onStop: (id: string) => void;
+  onStopAll: () => void;
   onSelectAgent: (agent: Agent) => void;
 }
 
@@ -79,7 +80,7 @@ const AgentListItem: React.FC<{
 };
 
 
-export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agents, selectedAgent, isConnected, onStart, onStop, onSelectAgent }) => {
+export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agents, selectedAgent, isConnected, onStart, onStop, onStopAll, onSelectAgent }) => {
   const [searchTerm, setSearchTerm] = React.useState('');
 
   const sortedAgents = [...agents].sort((a, b) => {
@@ -97,6 +98,8 @@ export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agents, selectedAgen
     agent.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const anyAgentRunning = agents.some(agent => agent.status === AgentStatus.RUNNING);
+
   return (
     <aside className="w-full h-full bg-adk-dark-2 flex flex-col border-r border-adk-dark-3">
       <header className="p-4 border-b border-adk-dark-3 flex-shrink-0">
@@ -112,6 +115,15 @@ export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agents, selectedAgen
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
+        <button
+          onClick={onStopAll}
+          disabled={!anyAgentRunning}
+          className="w-full mt-2 p-2 text-sm font-medium rounded-md bg-status-stopped/20 text-status-stopped hover:bg-status-stopped/40 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+          aria-label="Stop all running agents"
+        >
+          <StopIcon className="w-5 h-5 mr-2" />
+          Stop All
+        </button>
       </header>
       <div className="flex-1 overflow-y-auto p-4">
         <Flipper flipKey={filteredAgents.map(a => a.id).join('')} className="space-y-4">

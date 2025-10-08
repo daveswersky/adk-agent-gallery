@@ -18,7 +18,7 @@ const App: React.FC = () => {
     setSelectedAgent(agent);
   }, []);
 
-  const { agents, logs, isConnected, startAgent, stopAgent } = useManagementSocket({ onAgentStarted: handleAgentStarted });
+  const { agents, logs, isConnected, startAgent, stopAgent, stopAllAgents } = useManagementSocket({ onAgentStarted: handleAgentStarted });
 
   // State for resizable panes
   const [sidebarWidth, setSidebarWidth] = useState(384); // Corresponds to w-96
@@ -102,6 +102,7 @@ const App: React.FC = () => {
           isConnected={isConnected}
           onStart={startAgent}
           onStop={stopAgent}
+          onStopAll={stopAllAgents}
           onSelectAgent={handleSelectAgent}
         />
       </div>

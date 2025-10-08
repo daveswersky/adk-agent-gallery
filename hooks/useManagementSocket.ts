@@ -172,5 +172,9 @@ export const useManagementSocket = ({ onAgentStarted }: { onAgentStarted: (agent
     }
   };
 
-  return { agents, logs, isConnected, startAgent, stopAgent };
+  const stopAllAgents = () => {
+    sendCommand({ action: 'stop_all' });
+  };
+
+  return { agents, logs, isConnected, startAgent, stopAgent, stopAllAgents };
 };

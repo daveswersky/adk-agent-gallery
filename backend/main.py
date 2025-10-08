@@ -361,6 +361,12 @@ async def stop_agent_process(agent_name: str):
     await manager.broadcast(json.dumps({"type": "status", "agent": agent_name, "status": "not_running"}))
 
 
+async def stop_all_agents():
+    """Stops all running ADK agent processes."""
+    for agent_name in list(running_processes.keys()):
+        await stop_agent_process(agent_name)
+
+
 async def start_agent_with_error_handling(agent_name: str, port: int):
     """Wrapper to catch and report exceptions from start_agent_process."""
     try:
@@ -407,6 +413,8 @@ async def websocket_endpoint(websocket: WebSocket):
                     asyncio.create_task(start_agent_with_error_handling(agent_name, port))
             elif action == "stop":
                 asyncio.create_task(stop_agent_process(agent_name))
+            elif action == "stop_all":
+                asyncio.create_task(stop_all_agents())
 
     except WebSocketDisconnect:
         manager.disconnect(websocket)
