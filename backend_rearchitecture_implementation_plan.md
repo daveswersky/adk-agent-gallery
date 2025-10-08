@@ -6,6 +6,8 @@ This plan breaks the work into four distinct, sequential phases. Each phase deli
 
 #### **Phase 1: Core Process Management**
 
+**Status: Complete** (Regression test suite implemented and validated)
+
 **Goal:** Replace the current `adk api_server` subprocess with the new `AgentRunner` that manages a `uvicorn` subprocess. Event streaming is **not** implemented in this phase.
 
 1.  **Create `agent_host.py`:**
