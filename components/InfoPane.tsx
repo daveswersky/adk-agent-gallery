@@ -29,7 +29,7 @@ const StatusIndicator: React.FC<{ status: AgentStatus }> = ({ status }) => {
 };
 
 export const InfoPane: React.FC<InfoPaneProps> = ({ logs, agents, selectedAgent }) => {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('Sessions');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('Events');
 
   const filteredLogs = useMemo(() => {
     if (!selectedAgent) {
