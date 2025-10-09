@@ -66,3 +66,13 @@ To be runnable by the backend, each agent needs two key files:
     npm run dev
     ```
 3.  Open a web browser to the URL provided by Vite (usually `http://localhost:5173`).
+
+## Testing
+
+To run the integration tests, use the following command:
+
+```bash
+.venv/bin/python -m pytest
+```
+
+**Note:** Ensure you have shut down any running backend servers before running the tests to avoid port conflicts.
