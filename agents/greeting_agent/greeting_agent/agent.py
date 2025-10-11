@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from google.adk.agents import Agent, LlmAgent
+from google.adk.agents import LlmAgent
 
-greeting_agent = Agent(
+greeting_agent = LlmAgent(
     model="gemini-2.5-flash",
     name="greeting_agent",
     instruction="You are a friendly agent that greets the user. Your response should be short and sweet.",

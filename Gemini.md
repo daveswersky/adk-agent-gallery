@@ -54,6 +54,80 @@ To be runnable by the backend, each agent needs two key files:
 
 *Note: The `weather_agent` is not yet implemented and its `main.py` file is empty.*
 
+## Interacting with ADK Agents
+
+When running an ADK agent programmatically using `google.adk.runners.Runner`, it is crucial to understand the data structures for sending input and parsing output.
+
+### Sending User Input
+
+The `runner.run_async()` method expects a `new_message` argument. This can be a `google.genai.types.Content` object. To send a simple text prompt, structure it as follows:
+
+```python
+from google.genai.types import Content, Part
+
+prompt_text = "Hello"
+message = Content(parts=[Part(text=prompt_text)])
+
+response_generator = agent_runner.run_async(
+    user_id=...,
+    session_id=...,
+    new_message=message
+)
+```
+
+### Parsing Agent Responses
+
+The `run_async()` method returns an asynchronous generator that yields `google.adk.core.events.Event` objects. The agent's textual response is nested within these events. To extract the complete response, you must iterate through the generator, access the `content` attribute of each event, and then iterate through the `parts` of that content.
+
+```python
+response_chunks = []
+async for event in response_generator:
+    if hasattr(event, 'content') and event.content.parts:
+        for part in event.content.parts:
+            if hasattr(part, 'text'):
+                response_chunks.append(part.text)
+
+response = "".join(response_chunks)
+```
+
+This ensures that you correctly extract the text from the `Part` objects and handle cases where a response might be split across multiple events or parts.
+
+## Running ADK Agents Programmatically
+
+It is important to note that `google.adk.runtime` does not exist. The correct way to run an ADK agent within a Python application is by using the `Runner` and `Session` objects from the `google.adk.runners` and `google.adk.sessions` modules respectively.
+
+-   **`Session`**: Represents a stateful chat history between a user and one or more agents. It stores data that persists throughout the conversation.
+-   **`Runner`**: Connects agents with sessions and manages the flow of information between them.
+
+Here is an example of how to run an agent programmatically:
+
+```python
+from google.adk.runners import Runner
+from google.adk.sessions import Session, InMemorySessionService
+from google.adk.contrib.llms import Gemini
+from google.adk.core import Inference, prompt, run_sync
+from google.adk.core.events import TextData, UserInput
+
+# Define your agent
+@prompt.from_template("Hello! I am a friendly greeting agent. How can I help you today?")
+def greeting_agent(request: Inference) -> Inference:
+    return request.with_payload(
+        {"output": f"Hello! I am a friendly greeting agent."}
+    )
+
+# Run the agent
+session_service = InMemorySessionService()
+runner = Runner(agent=greeting_agent, session_service=session_service)
+response_generator = runner.run(
+    user_id="test_user",
+    session_id="test_session",
+    new_message=UserInput(text="Hello")
+)
+response = "".join([chunk.text for chunk in response_generator if hasattr(chunk, 'text')])
+print(response)
+
+```
+
 ## How to Run
 
 1.  **Start the Backend**:
