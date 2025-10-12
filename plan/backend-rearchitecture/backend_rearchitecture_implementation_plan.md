@@ -6,18 +6,17 @@ This plan breaks the work into four distinct, sequential phases. Each phase deli
 
 ---
 
-### **Phase 1: Backend Refactoring (In Progress)**
+### **Phase 1: Backend Refactoring (Complete)**
 
 **Overall Goal:** Incrementally replace the agent process management on the backend without altering the WebSocket API contract, ensuring the UI remains fully functional throughout.
 
-**Current Status (Phase 1b):** The `agent_host.py` script and its corresponding integration test (`test_agent_host.py`) have been implemented. However, the test is currently **failing** with a `500 Internal Server Error`.
+**Current Status (Phase 1):** All tasks in Phase 1 are complete. The `AgentRunner` now successfully uses the `agent_host.py` script to manage agent lifecycles, and all integration tests are passing.
 
-*   **Progress:** Several initial setup and integration issues have been resolved, including dependency installation, dynamic `app_name` configuration, `Session` initialization, and setting the required `GOOGLE_API_KEY` environment variable. The agent host process now starts successfully.
-*   **Next Step:** The `run_turn` function in `agent_host.py` is throwing an unhandled exception, resulting in the 500 error. Diagnostic logging has been added to this function. The immediate next step is to run the test again to capture the specific exception and resolve the final issue in this phase.
+*   **Next Step:** Begin Phase 2: Event Streaming.
 
 ---
 
-#### **Phase 1a: Introduce `AgentRunner` as a Wrapper**
+#### **Phase 1a: Introduce `AgentRunner` as a Wrapper (Complete)**
 
 **Goal:** Refactor the existing process management logic into a new `AgentRunner` class without changing its behavior. This is a pure refactoring step to establish the new class structure.
 
@@ -36,7 +35,7 @@ This plan breaks the work into four distinct, sequential phases. Each phase deli
 
 ---
 
-#### **Phase 1b: Develop and Test `agent_host.py` in Isolation**
+#### **Phase 1b: Develop and Test `agent_host.py` in Isolation (Complete)**
 
 **Goal:** Create the new agent hosting script and verify its correctness independently of the main application.
 
@@ -53,7 +52,7 @@ This plan breaks the work into four distinct, sequential phases. Each phase deli
 
 ---
 
-#### **Phase 1c: Integrate `agent_host.py` into `AgentRunner`**
+#### **Phase 1c: Integrate `agent_host.py` into `AgentRunner` (Complete)**
 
 **Goal:** Switch the `AgentRunner` to use the new, validated `agent_host.py` script instead of the original `adk api_server` command.
 
