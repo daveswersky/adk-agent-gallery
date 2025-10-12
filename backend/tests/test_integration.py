@@ -9,15 +9,16 @@ from websockets import State
 import uvicorn
 import threading
 import time
+from httpx import AsyncClient
 
 # Import the FastAPI app
 from backend.main import app
 
 # --- Server Fixture ---
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def live_server():
-    """Fixture to run the FastAPI app in a separate thread for the whole test session."""
+    """Fixture to run the FastAPI app in a separate thread for each test function."""
     server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=8000, log_level="info"))
     thread = threading.Thread(target=server.run)
     thread.daemon = True
@@ -25,7 +26,16 @@ def live_server():
     # Give the server a moment to start up
     time.sleep(2)
     yield
-    # The server will be shut down automatically when the test process exits.
+    server.should_exit = True
+    thread.join()
+
+# --- Test Client Fixture ---
+
+@pytest_asyncio.fixture
+async def async_test_client() -> AsyncGenerator[AsyncClient, None]:
+    """Fixture for an async test client that calls the app in-memory."""
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        yield client
 
 # --- Test Code ---
 

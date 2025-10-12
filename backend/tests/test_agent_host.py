@@ -136,26 +136,39 @@ async def running_agent_host(setup_test_venv):
         os.remove(stderr_log_file.name)
 
 
+import json
+
 async def test_agent_host_responds_correctly(running_agent_host):
     """
     Tests that the agent host starts correctly and responds to a prompt.
     """
     agent_url, stderr_log_path = running_agent_host
     
+    final_response = ""
     async with httpx.AsyncClient() as client:
-        response = await client.post(
+        async with client.stream(
+            "POST",
             agent_url,
-            json={"prompt": "Hello"},
+            json={
+                "user_id": "test_user",
+                "session_id": "test_session",
+                "new_message": {
+                    "parts": [{"text": "Hello"}]
+                }
+            },
             timeout=10
-        )
-    
+        ) as response:
+            assert response.status_code == 200
+            async for line in response.aiter_lines():
+                if line.strip():
+                    event = json.loads(line)
+                    if event.get("event_type") == "model_chunk":
+                        final_response += event.get("text", "")
+
     with open(stderr_log_path, 'r') as f:
         stderr_output = f.read()
 
     if response.status_code == 500:
         pytest.fail(f"Agent host returned 500 Internal Server Error. Stderr:\n{stderr_output}")
 
-    assert response.status_code == 200
-    response_data = response.json()
-    assert "response" in response_data
-    assert response_data["response"], f"Agent response was empty. Stderr:\n{stderr_output}"
+    assert final_response, f"Agent response was empty. Stderr:\n{stderr_output}"
