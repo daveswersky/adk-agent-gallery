@@ -143,6 +143,8 @@ print(response)
 
 ## Testing
 
+**IMPORTANT:** All testing MUST be executed manually, NOT through a Gemini CLI session. Gemini CLI must prompt the user to run tests, never run them itself.
+
 To run the integration tests, use the following command:
 
 ```bash

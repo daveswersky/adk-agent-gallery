@@ -124,91 +124,26 @@ class Session {
 
         const request = new Request(url, options);
         const requestClone = request.clone();
-        const response = await fetch(request);
-        const responseClone = response.clone();
         
         this.history.push({ role: 'user', content: historyPrompt });
-        await this.recordRequest(requestClone, responseClone, "Streaming response...");
 
-        if (!response.ok || !response.body) {
+        const response = await fetch(request);
+        
+        if (!response.ok) {
             const errorText = await response.text();
             console.error("Error response from server:", errorText);
-            this.requestHistory.pop();
-            await this.recordRequest(requestClone, responseClone, errorText);
-            throw new Error(`Failed to run turn: ${response.statusText}`);
+            await this.recordRequest(requestClone, response, errorText);
+            throw new HttpError(response.status, `Failed to run turn: ${response.statusText}`);
         }
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let fullResponse = '';
+        const responseData = await response.json();
+        const agentResponse = responseData.response;
 
-        const processLine = function*(line: string): Generator<any> {
-            if (line.trim() === '') return;
-            try {
-                const parsed = JSON.parse(line);
-                if (Array.isArray(parsed)) {
-                    for (const event of parsed) {
-                        yield event;
-                    }
-                } else {
-                    yield parsed;
-                }
-            } catch (e) {
-                console.error("Failed to parse streaming event:", e, "Line:", line);
-            }
-        };
+        this.history.push({ role: 'model', content: agentResponse });
+        
+        await this.recordRequest(requestClone, response, JSON.stringify(responseData));
 
-        let finalAnswer = '';
-        const self = this; // To access 'this' inside the generator
-        const processEvent = function*(event: any): Generator<AgentEvent> {
-            if (event.content?.role === 'tool') {
-                for (const part of event.content.parts) {
-                    if (part.functionResponse) {
-                        self.history.push({ role: 'tool', content: `Tool ${part.functionResponse.name} returned:\n${JSON.stringify(part.functionResponse.response, null, 2)}` });
-                        yield { type: 'tool_result', name: part.functionResponse.name, content: part.functionResponse.response };
-                    }
-                }
-            } else if (event.content?.role === 'model') {
-                for (const part of event.content.parts) {
-                    if (part.functionCall) {
-                        self.history.push({ role: 'tool', content: `Calling tool: ${part.functionCall.name}\nArguments:\n${JSON.stringify(part.functionCall.args, null, 2)}` });
-                        yield { type: 'tool_call', content: part.functionCall };
-                    }
-                    if (part.text) {
-                        finalAnswer = part.text;
-                        self.history.push({ role: 'model', content: self.formatToolResponse(finalAnswer) });
-                        yield { type: 'final_answer', content: finalAnswer };
-                    }
-                }
-            }
-        };
-
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            const chunk = decoder.decode(value, { stream: true });
-            buffer += chunk;
-            fullResponse += chunk;
-
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
-
-            for (const line of lines) {
-                for (const event of processLine(line)) {
-                    yield* processEvent(event);
-                }
-            }
-        }
-        if (buffer.trim()) {
-            for (const event of processLine(buffer)) {
-                yield* processEvent(event);
-            }
-        }
-
-        this.requestHistory.pop();
-        await this.recordRequest(requestClone, responseClone, fullResponse);
+        yield { type: 'final_answer', content: agentResponse };
     }
 }
 

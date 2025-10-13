@@ -156,6 +156,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent }) => {
         return;
     }
 
+    const userMessage: ChatMessage = { 
+        role: 'user', 
+        content: currentInput + (currentFile ? `\n[File attached: ${currentFile.name}]` : '') 
+    };
+    setMessages(prev => [...prev, userMessage]);
     setLoadingStatus({ type: 'thinking', message: 'Thinking...' });
     
     try {
