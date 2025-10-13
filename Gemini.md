@@ -150,3 +150,10 @@ To run the integration tests, use the following command:
 ```
 
 **Note:** Ensure you have shut down any running backend servers before running the tests to avoid port conflicts.
+
+## Development Workflow
+
+When a test fails, the following workflow should be followed:
+1. Fix the code to address the test failure.
+2. Run the tests to ensure that the fix is effective.
+3. Once the tests pass, commit the changes.
