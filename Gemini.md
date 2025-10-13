@@ -157,3 +157,4 @@ When a test fails, the following workflow should be followed:
 1. Fix the code to address the test failure.
 2. Run the tests to ensure that the fix is effective.
 3. Once the tests pass, commit the changes.
+4. Do not use backticks (\`) in git commit messages.
