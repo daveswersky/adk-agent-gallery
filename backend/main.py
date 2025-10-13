@@ -2,9 +2,10 @@ import asyncio
 import json
 import os
 import re
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict
+from pydantic import BaseModel
 from backend.connection_manager import manager, running_processes, starting_agents, startup_lock
 from backend.agent_runner import AgentRunner
 
@@ -17,6 +18,10 @@ app.add_middleware(
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
 )
+
+class TurnRequest(BaseModel):
+    agent_name: str
+    prompt: str
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -70,6 +75,21 @@ async def get_agents():
                     "description": description,
                 })
     return agents
+
+@app.post("/run_turn")
+async def run_turn(request: TurnRequest):
+    """Runs a single turn of the agent."""
+    agent_name = request.agent_name
+    prompt = request.prompt
+    
+    if agent_name not in running_processes:
+        raise HTTPException(status_code=404, detail="Agent not found or not running.")
+        
+    agent_info = running_processes[agent_name]
+    runner = agent_info["runner"]
+    
+    response = await runner.run_turn(prompt)
+    return {"response": response}
 
 async def start_agent_process(agent_name: str, port: int):
     """Starts an ADK agent on a specific port."""

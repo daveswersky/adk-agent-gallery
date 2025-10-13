@@ -4,18 +4,13 @@ import { Agent } from '../types';
 class SessionManager {
     public sessions: Map<string, Session> = new Map();
 
-    async getSession(agent: Agent): Promise<Session> {
-        if (this.sessions.has(agent.id)) {
-            return this.sessions.get(agent.id)!;
+    async getSession(agentName: string): Promise<Session> {
+        if (this.sessions.has(agentName)) {
+            return this.sessions.get(agentName)!;
         }
 
-        if (!agent.url) {
-            throw new Error(`Agent ${agent.name} does not have a URL.`);
-        }
-
-        const newSession = new Session(agent.url, agent.name);
-        await newSession.create();
-        this.sessions.set(agent.id, newSession);
+        const newSession = new Session(agentName);
+        this.sessions.set(agentName, newSession);
         return newSession;
     }
 

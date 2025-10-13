@@ -6,13 +6,13 @@ This plan breaks the work into four distinct, sequential phases. Each phase deli
 
 ---
 
-### **Phase 1: Backend Refactoring (In Progress)**
+### **Phase 1: Backend Refactoring (Complete)**
 
 **Overall Goal:** Incrementally replace the agent process management on the backend without altering the WebSocket API contract, ensuring the UI remains fully functional throughout.
 
-**Current Status (Phase 1):** Phase 1a and 1b are complete. The `AgentRunner` class has been created and the `agent_host.py` script has been developed and tested in isolation. The final integration in Phase 1c is pending.
+**Current Status (Phase 1):** All tasks in Phase 1 are complete. The `AgentRunner` now successfully uses the `agent_host.py` script to manage agent lifecycles, and all integration tests are passing.
 
-*   **Next Step:** Complete Phase 1c: Integrate `agent_host.py` into `AgentRunner`.
+*   **Next Step:** Begin Phase 2: Event Streaming.
 
 ---
 
@@ -52,7 +52,7 @@ This plan breaks the work into four distinct, sequential phases. Each phase deli
 
 ---
 
-#### **Phase 1c: Integrate `agent_host.py` into `AgentRunner` (To Do)**
+#### **Phase 1c: Integrate `agent_host.py` into `AgentRunner` (Complete)**
 
 **Goal:** Switch the `AgentRunner` to use the new, validated `agent_host.py` script instead of the original `adk api_server` command.
 

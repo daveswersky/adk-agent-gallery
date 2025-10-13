@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { ChatMessage, RequestRecord, HttpError } from '../types';
+import { API_BASE_URL } from '../config';
 
 // This type is now only used by the UI component
 export type LoadingStatus = {
@@ -30,15 +31,13 @@ const fileToBase64 = (file: File): Promise<string> => {
 
 class Session {
     public sessionId: string;
-    private agentUrl: string;
     private agentName: string;
     private userId: string;
     public history: ChatMessage[] = [];
     public requestHistory: RequestRecord[] = [];
 
-    constructor(agentUrl: string, agentName: string) {
+    constructor(agentName: string) {
         this.sessionId = uuidv4();
-        this.agentUrl = agentUrl;
         this.agentName = agentName;
         this.userId = "forusone";
     }
@@ -89,38 +88,8 @@ class Session {
         });
     }
 
-    async create(): Promise<void> {
-        const url = `${this.agentUrl}/apps/${this.agentName.replace(/-/g, '_')}/users/${this.userId}/sessions/${this.sessionId}`;
-        const options = {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-        };
-        const request = new Request(url, options);
-        const response = await fetch(request);
-        const responseClone = response.clone(); // Clone the response here
-        const responseBody = await response.text();
-
-        // Pass the original request to be cloned inside recordRequest
-        await this.recordRequest(request.clone(), responseClone, responseBody);
-
-        if (!response.ok) {
-            throw new Error(`Failed to create session: ${response.statusText} - ${responseBody}`);
-        }
-    }
-
-    private formatToolResponse(text: string): string {
-        const toolReportRegex = /(?:\\[.*?\\]|\w+)\s+tool reported:\s*/s;
-        if (toolReportRegex.test(text)) {
-            const parts = text.split(toolReportRegex);
-            const introText = parts[0].trim();
-            const resultsText = parts.slice(1).join('').trim();
-            return `${introText}\n\nHere are the results:\n${resultsText}`;
-        }
-        return text;
-    }
-
     async *runTurn(prompt: string, file: File | null = null): AsyncGenerator<AgentEvent> {
-        const url = `${this.agentUrl}/run`;
+        const url = `${API_BASE_URL}/run_turn`;
         
         const parts: Array<any> = [{ text: prompt }];
         let historyPrompt = prompt;
@@ -144,11 +113,8 @@ class Session {
         }
 
         const body = {
-            app_name: this.agentName.replace(/-/g, '_'),
-            user_id: this.userId,
-            session_id: this.sessionId,
-            new_message: { role: 'user', parts: parts },
-            stream: true,
+            agent_name: this.agentName,
+            prompt: prompt,
         };
         const options = {
             method: 'POST',

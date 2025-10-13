@@ -3,6 +3,7 @@ import json
 import os
 import re
 from typing import Optional
+import httpx
 from backend.connection_manager import manager
 
 async def _read_stream_and_signal_start(stream, agent_name: str, is_error_stream: bool, started_event: asyncio.Event):
@@ -48,6 +49,7 @@ class AgentRunner:
         python_executable = os.path.join(venv_path, "bin", "python")
         uv_executable = os.path.join(venv_path, "bin", "uv")
         requirements_path = os.path.join(self.agent_path, "requirements.txt")
+        host_requirements_path = os.path.abspath("backend/agent_host_requirements.txt")
 
         # 1. Create virtual environment if it doesn't exist
         if not os.path.exists(venv_path):
@@ -75,11 +77,13 @@ class AgentRunner:
             if proc.returncode != 0:
                 raise RuntimeError("Failed to install uv.")
 
-        # 2. Install dependencies
+        # 2. Install dependencies (agent and host)
+        await manager.broadcast(json.dumps({"type": "status", "agent": self.agent_name, "status": "installing_dependencies"}))
+        env = os.environ.copy()
+        env["VIRTUAL_ENV"] = venv_path
+        
+        # Install agent requirements
         if os.path.exists(requirements_path):
-            await manager.broadcast(json.dumps({"type": "status", "agent": self.agent_name, "status": "installing_dependencies"}))
-            env = os.environ.copy()
-            env["VIRTUAL_ENV"] = venv_path
             proc = await asyncio.create_subprocess_exec(
                 uv_executable, "pip", "install", "-r", requirements_path,
                 cwd=self.agent_path,
@@ -91,16 +95,29 @@ class AgentRunner:
             asyncio.create_task(_read_pip_stream(proc.stderr, self.agent_name, True))
             await proc.wait()
             if proc.returncode != 0:
-                raise RuntimeError("Failed to install dependencies.")
+                raise RuntimeError("Failed to install agent dependencies.")
+
+        # Install host requirements
+        proc = await asyncio.create_subprocess_exec(
+            uv_executable, "pip", "install", "-r", host_requirements_path,
+            cwd=self.agent_path,
+            env=env,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        asyncio.create_task(_read_pip_stream(proc.stdout, self.agent_name, False))
+        asyncio.create_task(_read_pip_stream(proc.stderr, self.agent_name, True))
+        await proc.wait()
+        if proc.returncode != 0:
+            raise RuntimeError("Failed to install host dependencies.")
+
 
         # 3. Start the agent
-        adk_executable = os.path.join(venv_path, "bin", "adk")
-        env = os.environ.copy()
-        env["VIRTUAL_ENV"] = venv_path
-        env["PYTHONPATH"] = self.agent_path
+        agent_host_script = os.path.abspath("backend/agent_host.py")
         
-        module_name = self.agent_name.replace('-', '_')
-        command = [adk_executable, "api_server", module_name, "--port", str(self.port), "--allow_origins", "*"]
+        env["PYTHONPATH"] = os.path.abspath(".") # Add project root to python path
+        
+        command = [python_executable, agent_host_script, "--agent-path", self.agent_path, "--port", str(self.port)]
 
         self.process = await asyncio.create_subprocess_exec(
             *command,
@@ -116,6 +133,17 @@ class AgentRunner:
         
         await started_event.wait()
 
+    async def run_turn(self, prompt: str) -> str:
+        """Sends a prompt to the agent and returns the response."""
+        url = f"http://localhost:{self.port}/"
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(url, json={"prompt": prompt}, timeout=60)
+                response.raise_for_status()
+                return response.json().get("response", "")
+            except httpx.RequestError as e:
+                await manager.broadcast(json.dumps({"type": "log", "agent": self.agent_name, "line": f"[ERROR] Could not connect to agent: {e}"}))
+                return "Error: Could not connect to the agent."
 
     async def stop(self):
         """Stops the agent subprocess."""
