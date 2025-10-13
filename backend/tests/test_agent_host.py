@@ -45,104 +45,78 @@ def setup_test_venv():
     # shutil.rmtree(venv_path)
 
 
-import tempfile
 
 @pytest_asyncio.fixture
 async def running_agent_host(setup_test_venv):
     """
-    Starts the agent_host.py script as a subprocess and yields control.
-    Terminates the process after the test is complete.
+    Starts the agent_host.py script as a subprocess, captures its stderr,
+    and yields control. Terminates the process after the test is complete.
     """
     python_executable = setup_test_venv
     
     env = os.environ.copy()
-    dotenv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
-    if os.path.exists(dotenv_path):
-        with open(dotenv_path, 'r') as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith('#'):
-                    key, value = line.split('=', 1)
-                    env[key] = value
-    
-    # The agent host expects GOOGLE_API_KEY, but the .env file provides GEMINI_API_KEY.
-    if "GEMINI_API_KEY" in env:
-        api_key = env["GEMINI_API_KEY"]
-        if api_key.startswith('"') and api_key.endswith('"'):
-            api_key = api_key[1:-1]
-        elif api_key.startswith("'") and api_key.endswith("'"):
-            api_key = api_key[1:-1]
-        env["GOOGLE_API_KEY"] = api_key
 
-    # Create a temporary file to capture stderr
-    stderr_log_file = tempfile.NamedTemporaryFile(delete=False, mode='w+', encoding='utf-8')
+    stderr_capture = []
+    async def _read_stream(stream, storage):
+        while True:
+            line = await stream.readline()
+            if line:
+                storage.append(line.decode('utf-8'))
+            else:
+                break
 
-    # Start the agent host as a subprocess
     process = await asyncio.create_subprocess_exec(
         python_executable,
         AGENT_HOST_SCRIPT,
         "--agent-path", GREETING_AGENT_PATH,
         "--port", str(TEST_PORT),
+        "--verbose",
         stdout=asyncio.subprocess.PIPE,
-        stderr=stderr_log_file,
+        stderr=asyncio.subprocess.PIPE,
         env=env
     )
 
-    # Wait for the server to start by polling the /health endpoint
+    stderr_task = asyncio.create_task(_read_stream(process.stderr, stderr_capture))
+
     health_url = f"http://localhost:{TEST_PORT}/health"
     start_time = time.time()
-    while True:
-        # Check if the process has exited unexpectedly
+    is_healthy = False
+    while time.time() - start_time < 30:
         if process.returncode is not None:
-            stderr_log_file.seek(0)
-            stderr_output = stderr_log_file.read()
-            stderr_log_file.close()
-            os.remove(stderr_log_file.name)
-            raise RuntimeError(f"Agent host process exited with code {process.returncode}. Stderr: {stderr_output}")
-
+            break 
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(health_url, timeout=1)
                 if response.status_code == 200:
+                    is_healthy = True
                     break
         except httpx.ConnectError:
-            pass
-        
-        if time.time() - start_time > 30: # 30 second timeout
-            process.terminate()
-            await process.wait()
-            stderr_log_file.seek(0)
-            stderr_output = stderr_log_file.read()
-            stderr_log_file.close()
-            os.remove(stderr_log_file.name)
-            raise RuntimeError(f"Agent host did not start in time. Stderr: {stderr_output}")
-        
-        await asyncio.sleep(0.5)
-
-    try:
-        yield f"http://localhost:{TEST_PORT}", stderr_log_file.name
-    finally:
-        # Teardown: terminate the process and clean up the log file
+            await asyncio.sleep(0.5)
+    
+    if not is_healthy:
         process.terminate()
         await process.wait()
+        stderr_task.cancel()
+        stderr_output = "".join(stderr_capture)
+        raise RuntimeError(f"Agent host did not start in time. Stderr: {stderr_output}")
+
+    try:
+        yield f"http://localhost:{TEST_PORT}", stderr_capture
+    finally:
+        process.terminate()
+        await process.wait()
+        stderr_task.cancel()
         
-        # Print the stderr log file for debugging
-        with open(stderr_log_file.name, 'r') as f:
-            print("\n--- Agent Host Stderr ---")
-            print(f.read())
-            print("-------------------------\n")
+        print("\n--- Agent Host Stderr (Teardown) ---")
+        print("".join(stderr_capture))
+        print("-------------------------------------\n")
 
-        stderr_log_file.close()
-        os.remove(stderr_log_file.name)
-
-
-import json
 
 async def test_agent_host_responds_correctly(running_agent_host):
     """
     Tests that the agent host starts correctly and responds to a prompt.
     """
-    agent_url, stderr_log_path = running_agent_host
+    agent_url, stderr_capture = running_agent_host
     
     final_response = ""
     async with httpx.AsyncClient() as client:
@@ -151,15 +125,14 @@ async def test_agent_host_responds_correctly(running_agent_host):
             json={"prompt": "Hello"},
             timeout=10
         )
+
+    stderr_output = "".join(stderr_capture)
+    print(f"\n--- Agent Host Stderr ---\n{stderr_output}\n-------------------------\n")
+
+    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}. Stderr:\n{stderr_output}"
     
-    assert response.status_code == 200
     response_json = response.json()
     final_response = response_json.get("response")
 
-    with open(stderr_log_path, 'r') as f:
-        stderr_output = f.read()
-
-    if response.status_code == 500:
-        pytest.fail(f"Agent host returned 500 Internal Server Error. Stderr:\n{stderr_output}")
-
     assert final_response, f"Agent response was empty. Stderr:\n{stderr_output}"
+
