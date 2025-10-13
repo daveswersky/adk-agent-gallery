@@ -6,8 +6,12 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict
 from pydantic import BaseModel
+import multiprocessing as mp
 from backend.connection_manager import manager, running_processes, starting_agents, startup_lock
 from backend.agent_runner import AgentRunner
+
+# Create a single, centralized multiprocessing manager
+mp_manager = mp.Manager()
 
 app = FastAPI()
 
@@ -88,8 +92,9 @@ async def run_turn(request: TurnRequest):
     agent_info = running_processes[agent_name]
     runner = agent_info["runner"]
     
-    response = await runner.run_turn(prompt)
-    return {"response": response}
+    # The runner now returns a dictionary with "response" and "events"
+    turn_result = await runner.run_turn(prompt)
+    return turn_result
 
 async def start_agent_process(agent_name: str, port: int):
     """Starts an ADK agent on a specific port."""
@@ -120,7 +125,7 @@ async def start_agent_process(agent_name: str, port: int):
         if not agent_path:
             raise FileNotFoundError(f"Agent '{agent_name}' not found.")
 
-        runner = AgentRunner(agent_name, agent_path, port)
+        runner = AgentRunner(agent_name, agent_path, port, mp_manager)
         await runner.start()
 
         agent_url = f"http://localhost:{port}"

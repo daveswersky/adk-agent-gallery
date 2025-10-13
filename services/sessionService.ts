@@ -138,6 +138,17 @@ class Session {
 
         const responseData = await response.json();
         const agentResponse = responseData.response;
+        const events = responseData.events || [];
+
+        for (const event of events) {
+            if (event.type === 'tool_start') {
+                this.history.push({ role: 'tool', content: `Calling tool: ${event.tool_name}\nArguments:\n${event.tool_input}` });
+                yield { type: 'tool_call', content: { name: event.tool_name, args: event.tool_input } };
+            } else if (event.type === 'tool_end') {
+                this.history.push({ role: 'tool', content: `Tool ${event.tool_name} returned:\n${event.tool_output}` });
+                yield { type: 'tool_result', name: event.tool_name, content: event.tool_output };
+            }
+        }
 
         this.history.push({ role: 'model', content: agentResponse });
         

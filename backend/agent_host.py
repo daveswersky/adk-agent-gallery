@@ -3,12 +3,21 @@ import asyncio
 import importlib.util
 import os
 import sys
+import traceback
+import ast
+
+# Add the parent directory to the Python path to allow for relative imports
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from contextlib import asynccontextmanager
+from multiprocessing.managers import BaseManager
+from multiprocessing import Queue
 from fastapi import FastAPI, Request
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai.types import Content, Part
 import uvicorn
+from backend.event_streaming_plugin import EventStreamingPlugin
 
 # --- Environment Variable Loading and Debugging ---
 
@@ -51,7 +60,10 @@ def load_env_file(filepath, verbose=False):
 parser = argparse.ArgumentParser(description="Agent Host Server")
 parser.add_argument("--agent-path", required=True, help="The path to the agent's root directory.")
 parser.add_argument("--port", type=int, required=True, help="The port to run the server on.")
+parser.add_argument("--event-queue-id", type=str, help="The ID of the event queue.")
 parser.add_argument("--verbose", action="store_true", help="Enable verbose debugging output.")
+parser.add_argument("--manager-address", help="The address of the multiprocessing manager.")
+parser.add_argument("--manager-authkey", help="The authkey for the multiprocessing manager.")
 # Use parse_known_args to avoid conflicts with uvicorn's args
 args, _ = parser.parse_known_args()
 
@@ -86,18 +98,43 @@ async def lifespan(app: FastAPI):
         # Dynamically load the agent from the specified path
         app_name = os.path.basename(args.agent_path)
         module_name = app_name.replace('-', '_')
-        agent_module_path = os.path.join(args.agent_path, module_name, "agent.py")
 
-        spec = importlib.util.spec_from_file_location("agent_main", agent_module_path)
-        agent_module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(agent_module)
-        
-        root_agent = agent_module.root_agent
+        # Add agent's root directory to sys.path to allow for package-based imports
+        sys.path.insert(0, args.agent_path)
+
+        try:
+            # Import the agent module as part of a package
+            agent_module = importlib.import_module(f"{module_name}.agent")
+            root_agent = agent_module.root_agent
+        finally:
+            # Clean up sys.path
+            sys.path.pop(0)
+
         session_service = InMemorySessionService()
+
+        plugins = []
+        if args.event_queue_id and args.manager_address and args.manager_authkey:
+            # The manager is created in the parent process. We connect to it here.
+            class QueueManager(BaseManager):
+                pass
+            
+            QueueManager.register('dict')
+            
+            manager_address = ast.literal_eval(args.manager_address)
+            manager_authkey = bytes.fromhex(args.manager_authkey)
+
+            manager = QueueManager(address=manager_address, authkey=manager_authkey)
+            manager.connect()
+
+            shared_dict = manager.dict()
+            event_queue = shared_dict[args.event_queue_id]
+            plugins.append(EventStreamingPlugin(queue=event_queue))
+
         app.state.agent_runner = Runner(
             agent=root_agent, 
             session_service=session_service,
-            app_name=app_name
+            app_name=app_name,
+            plugins=plugins
         )
         app.state.agent_session = await session_service.create_session(
             session_id="test_session",
@@ -106,8 +143,10 @@ async def lifespan(app: FastAPI):
         )
     except Exception as e:
         print(f"Error during agent loading: {e}", file=sys.stderr, flush=True)
-        # We need to yield to avoid crashing the server on startup,
-        # but the agent will not be loaded.
+        traceback.print_exc(file=sys.stderr)
+        # We yield to avoid crashing the server on startup,
+        # but the agent will not be loaded. The run_turn endpoint will
+        # catch this and return an informative error.
     yield
 
 app = FastAPI(lifespan=lifespan)
@@ -119,10 +158,10 @@ async def health_check():
 @app.post("/")
 async def run_turn(request: Request):
     """Runs a single turn of the agent."""
-    agent_session = request.app.state.agent_session
-    agent_runner = request.app.state.agent_runner
+    agent_session = getattr(request.app.state, 'agent_session', None)
+    agent_runner = getattr(request.app.state, 'agent_runner', None)
     if not agent_session or not agent_runner:
-        return {"error": "Agent not loaded"}, 500
+        return {"error": "Agent not loaded due to a startup error. Check the agent host's logs for details."}, 500
     
     try:
         data = await request.json()
@@ -156,7 +195,10 @@ def main():
     parser = argparse.ArgumentParser(description="Agent Host Server")
     parser.add_argument("--agent-path", required=True, help="The path to the agent's root directory.")
     parser.add_argument("--port", type=int, required=True, help="The port to run the server on.")
+    parser.add_argument("--event-queue-id", type=str, help="The ID of the event queue.")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose debugging output.")
+    parser.add_argument("--manager-address", help="The address of the multiprocessing manager.")
+    parser.add_argument("--manager-authkey", help="The authkey for the multiprocessing manager.")
     final_args = parser.parse_args()
     uvicorn.run(app, host="0.0.0.0", port=final_args.port)
 

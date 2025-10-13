@@ -2,9 +2,12 @@ import asyncio
 import json
 import os
 import re
-from typing import Optional
+from typing import Optional, Any
 import httpx
 from backend.connection_manager import manager
+import multiprocessing as mp
+from multiprocessing.managers import BaseManager, SyncManager
+import uuid
 
 async def _read_stream_and_signal_start(stream, agent_name: str, is_error_stream: bool, started_event: asyncio.Event):
     """
@@ -16,6 +19,10 @@ async def _read_stream_and_signal_start(stream, agent_name: str, is_error_stream
         if not line:
             break
         line_str = line.decode().strip()
+
+        # Log subprocess output directly to the main process stdout for debugging tests
+        stream_name = "stderr" if is_error_stream else "stdout"
+        print(f"AGENT_HOST_SUBPROCESS({agent_name}, {stream_name}): {line_str}", flush=True)
 
         log_line = f"[ERROR] {line_str}" if is_error_stream else line_str
         await manager.broadcast(json.dumps({"type": "log", "agent": agent_name, "line": log_line}))
@@ -37,11 +44,19 @@ async def _read_pip_stream(stream, agent_name: str, is_error_stream: bool):
 class AgentRunner:
     """Manages the lifecycle of a single agent subprocess."""
 
-    def __init__(self, agent_name: str, agent_path: str, port: int):
+    def __init__(self, agent_name: str, agent_path: str, port: int, mp_manager: SyncManager):
         self.agent_name = agent_name
         self.agent_path = agent_path
         self.port = port
         self.process: Optional[asyncio.subprocess.Process] = None
+        
+        # IPC setup
+        self.manager = mp_manager
+        self.shared_dict = self.manager.dict()
+        self.event_queue = self.manager.Queue()
+        self.queue_id = f"queue_{uuid.uuid4()}"
+        self.shared_dict[self.queue_id] = self.event_queue
+
 
     async def start(self):
         """Creates a venv, installs dependencies, and starts the agent subprocess."""
@@ -117,7 +132,19 @@ class AgentRunner:
         
         env["PYTHONPATH"] = os.path.abspath(".") # Add project root to python path
         
-        command = [python_executable, agent_host_script, "--agent-path", self.agent_path, "--port", str(self.port)]
+        manager_address = self.manager.address
+        manager_authkey = self.manager._authkey.hex()
+
+        command = [
+            python_executable, 
+            "-u",
+            agent_host_script, 
+            "--agent-path", self.agent_path, 
+            "--port", str(self.port),
+            "--event-queue-id", self.queue_id,
+            "--manager-address", str(manager_address),
+            "--manager-authkey", manager_authkey
+        ]
 
         self.process = await asyncio.create_subprocess_exec(
             *command,
@@ -133,17 +160,32 @@ class AgentRunner:
         
         await started_event.wait()
 
-    async def run_turn(self, prompt: str) -> str:
-        """Sends a prompt to the agent and returns the response."""
+    async def run_turn(self, prompt: str) -> dict:
+        """Sends a prompt to the agent and returns the response and events."""
         url = f"http://localhost:{self.port}/"
+        
+        # Clear the queue before the turn
+        while not self.event_queue.empty():
+            self.event_queue.get()
+
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.post(url, json={"prompt": prompt}, timeout=60)
                 response.raise_for_status()
-                return response.json().get("response", "")
+                
+                agent_response = response.json().get("response", "")
+                
+                events = []
+                q = self.shared_dict[self.queue_id]
+                while not q.empty():
+                    event_str = q.get()
+                    events.append(json.loads(event_str))
+
+                return {"response": agent_response, "events": events}
+
             except httpx.RequestError as e:
                 await manager.broadcast(json.dumps({"type": "log", "agent": self.agent_name, "line": f"[ERROR] Could not connect to agent: {e}"}))
-                return "Error: Could not connect to the agent."
+                return {"response": "Error: Could not connect to the agent.", "events": []}
 
     async def stop(self):
         """Stops the agent subprocess."""

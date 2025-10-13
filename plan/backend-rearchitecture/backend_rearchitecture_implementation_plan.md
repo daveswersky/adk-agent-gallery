@@ -69,9 +69,11 @@ This plan breaks the work into four distinct, sequential phases. Each phase deli
 
 ---
 
-#### **Phase 2: Event Streaming**
+#### **Phase 2: Event Streaming (In Progress)**
 
 **Goal:** Implement the real-time event streaming from the agent to the frontend.
+
+**Testing Strategy:** The `academic-research` agent from the ADK samples will be used as the primary test case for this phase. Because it uses an `AgentTool` to delegate research tasks, it provides a perfect scenario to verify that `tool_call` and `tool_result` events are correctly streamed to the UI.
 
 1.  **Create `EventStreamingPlugin`:**
     *   Create the new plugin class.
