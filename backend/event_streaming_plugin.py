@@ -3,6 +3,7 @@ from google.adk.plugins import BasePlugin
 
 class EventStreamingPlugin(BasePlugin):
     def __init__(self, pipe_writer):
+        self.name = "event_streaming_plugin"
         self._pipe_writer = pipe_writer
 
     def before_tool_call(self, tool_call) -> None:
