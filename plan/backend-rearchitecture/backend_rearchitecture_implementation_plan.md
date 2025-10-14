@@ -86,3 +86,11 @@ This plan breaks the work into four distinct, sequential phases. Each phase deli
     *   Write integration tests that start a real agent subprocess and verify the event flow and A2A communication.
 
 **Outcome:** The new architecture is stable, reliable, and ready for use.
+
+---
+
+### **Future Enhancements (Post-MVP)**
+
+*   **Multi-Session Support**: The current implementation uses a single, persistent session per agent. A future enhancement will be to manage multiple concurrent sessions, allowing for isolated conversations. This will require state management changes on both the frontend (to track which session is active in the UI) and the backend (to map incoming requests to the correct session object).
+*   **Resource Management**: Add controls to limit the number of concurrently running agents and automatically shut down idle ones to conserve system resources.
+*   **Enhanced Security**: Implement security best practices, such as validating agent paths to prevent directory traversal and sandboxing agent code execution.
