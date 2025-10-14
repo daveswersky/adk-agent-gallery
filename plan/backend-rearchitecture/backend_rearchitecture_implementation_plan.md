@@ -1,99 +1,57 @@
 ### **Implementation Plan: Phased Rollout**
 
-This document provides a phased implementation plan for the architecture described in the [Architectural Design](./programmatic_agent_runner_design.md).
-
 This plan breaks the work into four distinct, sequential phases. Each phase delivers a testable piece of functionality, allowing for iterative development and reducing risk.
 
 ---
 
-### **Phase 1: Backend Refactoring (Complete)**
+#### **Phase 1: Core Process Management**
 
-**Overall Goal:** Incrementally replace the agent process management on the backend without altering the WebSocket API contract, ensuring the UI remains fully functional throughout.
+**Status: Complete** (Regression test suite implemented and validated)
 
-**Current Status (Phase 1):** All tasks in Phase 1 are complete. The `AgentRunner` now successfully uses the `agent_host.py` script to manage agent lifecycles, and all integration tests are passing.
-
-*   **Next Step:** Begin Phase 2: Event Streaming.
-
----
-
-#### **Phase 1a: Introduce `AgentRunner` as a Wrapper (Complete)**
-
-**Goal:** Refactor the existing process management logic into a new `AgentRunner` class without changing its behavior. This is a pure refactoring step to establish the new class structure.
-
-1.  **Create `AgentRunner` Class:**
-    *   Create a new file, `backend/agent_runner.py`, with a skeleton `AgentRunner` class.
-2.  **Refactor Process Management:**
-    *   In `main.py`, move the existing `asyncio.create_subprocess_exec` logic (which runs `adk api_server`) into a new `AgentRunner.start()` method.
-    *   The `AgentRunner` instance will store the `Process` object and its `stdout`/`stderr` streams.
-    *   Create an `AgentRunner.stop()` method to terminate the stored process.
-3.  **Integrate `AgentRunner` into `main.py`:**
-    *   Update the WebSocket "start" command handler in `main.py` to create an `AgentRunner` instance.
-    *   The log streaming loop in `main.py` should now read from the stream objects managed by the `AgentRunner`.
-    *   The `run_turn` logic in `main.py` (which sends an HTTP request to the `adk api_server` port) will remain unchanged for now.
-
-**Testing:** The application should be manually testable and function identically to its current state. Starting, stopping, and interacting with an agent via the UI should show no change in behavior.
-
----
-
-#### **Phase 1b: Develop and Test `agent_host.py` in Isolation (Complete)**
-
-**Goal:** Create the new agent hosting script and verify its correctness independently of the main application.
+**Goal:** Replace the current `adk api_server` subprocess with the new `AgentRunner` that manages a `uvicorn` subprocess. Event streaming is **not** implemented in this phase.
 
 1.  **Create `agent_host.py`:**
-    *   Build the script as a minimal FastAPI application that loads and runs an agent based on command-line arguments (`--agent-path`, `--port`).
-2.  **Create Host Dependencies:**
-    *   Create `backend/agent_host_requirements.txt` containing `fastapi` and `uvicorn`.
-3.  **Write Integration Test:**
-    *   Create a new test file, `backend/tests/test_agent_host.py`.
-    *   This test will use Python's `subprocess` module to run `agent_host.py` with a sample agent (e.g., `greeting_agent`).
-    *   It will then use an HTTP client like `httpx` to send a `POST` request to the running host and assert that the agent's response is correct.
-
-**Testing:** Run `pytest backend/tests/test_agent_host.py`. The test should pass, proving the new hosting mechanism works as expected before it's integrated.
-
----
-
-#### **Phase 1c: Integrate `agent_host.py` into `AgentRunner` (Complete)**
-
-**Goal:** Switch the `AgentRunner` to use the new, validated `agent_host.py` script instead of the original `adk api_server` command.
-
-1.  **Update `AgentRunner` Dependencies:**
-    *   Modify `AgentRunner.__init__` to perform the two-step dependency installation: first the agent's `requirements.txt`, then the host's `agent_host_requirements.txt`.
-2.  **Update `AgentRunner.start` Method:**
-    *   Change the command in `AgentRunner.start()` to execute `python3 backend/agent_host.py` with the correct arguments. It must continue to capture `stdout` and `stderr` for log streaming.
-3.  **Create `AgentRunner.run_turn` Method:**
-    *   Implement a new `run_turn` method inside `AgentRunner`. This method will use `httpx` to send the user's prompt to the `agent_host`'s `/` endpoint.
+    *   Build the basic script that takes an agent path and port.
+    *   It should dynamically import the agent's `serving` object and start a `uvicorn` server.
+2.  **Create `AgentRunner` Class:**
+    *   Implement the `__init__` method to manage the `.venv` and start the `agent_host.py` script as a subprocess.
+    *   Implement the `stop` method to terminate the process.
+3.  **Implement `AgentRunner.run_turn` (HTTP Client):**
+    *   Implement the method to simply make an HTTP POST request to the agent's `localhost:[port]`. It should not yet handle any event queueing.
 4.  **Update `main.py`:**
-    *   Modify the `run_turn` handler in `main.py` to call the new `agent_runner.run_turn()` method instead of sending its own HTTP request.
+    *   Replace the existing `asyncio.create_subprocess_exec` logic with the new `AgentRunner`.
+    *   Wire up the `start`, `stop`, and `run_turn` actions from the WebSocket to the `AgentRunner` instance.
 
-**Testing:** Once again, the application should be fully functional from the UI. This change should be transparent to the end-user, but the backend will now be using the new, more robust agent hosting mechanism.
+**Outcome:** The application should function exactly as it does now, but with the new process management backend. This is a critical refactoring step that can be tested in isolation.
 
 ---
 
-#### **Phase 2: Event Streaming (Complete)**
+#### **Phase 2: Event Streaming**
+
+**Status: Complete** (Pipe-based IPC mechanism and unit tests for the `EventStreamingPlugin` have been implemented and validated.)
 
 **Goal:** Implement the real-time event streaming from the agent to the frontend.
 
-**Summary:** The initial IPC (Inter-Process Communication) approach using `multiprocessing.Manager` was unsuccessful and abandoned. A new, more robust solution using a simple `os.pipe()` was implemented instead. The `AgentRunner` now creates a pipe and passes the write-end to the `agent_host` subprocess, which uses an `EventStreamingPlugin` to send JSON events. The `AgentRunner` reads from the pipe asynchronously, making the event stream available to the frontend. This new implementation has been fully tested and is now stable.
+1.  **Create `EventStreamingPlugin`:**
+    *   Create the new plugin class.
+    *   It should take a file-like writer object (the write-end of a pipe) in its constructor.
+    *   Implement the `before_tool_callback` and `after_tool_callback` methods to format a JSON event and write it to the pipe.
+2.  **Integrate IPC via `os.pipe()`:**
+    *   Update `AgentRunner` to create a pipe using `os.pipe()`.
+    *   Pass the file descriptor for the write-end of the pipe to the `agent_host.py` subprocess.
+    *   Update `agent_host.py` to accept the file descriptor, create a writer object from it, and pass that to the `EventStreamingPlugin`.
+3.  **Implement Real-Time Event Broadcasting:**
+    *   In `AgentRunner`, connect the read-end of the pipe to a custom `asyncio.Protocol` (`EventStreamProtocol`).
+    *   This protocol reads newline-delimited JSON events from the pipe as they arrive.
+    *   Each event is immediately broadcast to the frontend via the WebSocket `ConnectionManager`, ensuring real-time streaming without waiting for the turn to complete.
+4.  **Update Frontend (If Necessary):**
+    *   Ensure the frontend can correctly parse and display the new structured event types (`before_tool`, `after_tool`).
 
-*   **Next Step:** Begin Phase 2b: Tool & Sub-agent Event Verification.
+**Outcome:** The Info Pane in the UI will now show real-time events as the agent executes its tools.
 
----
-
-#### **Phase 2b: Tool & Sub-agent Event Verification**
-
-**Goal:** Manually test and confirm that the new event streaming architecture correctly captures and displays events from more complex agents that use tools and delegate to sub-agents.
-
-**Testing Strategy:** The `marketing-agency` agent was used as the primary test case. Manual testing uncovered a series of bugs in the `EventStreamingPlugin` that were not caught by unit tests.
-
-**Debugging Summary:**
-1.  **`TypeError` on `NoneType`:** The `agent_host` crashed when tool-using agents returned `None` for the text part of their response. This was fixed by adding a `is not None` check.
-2.  **Incorrect Method Names:** Events were not firing because the plugin methods were named `before_tool_call` instead of the required `before_tool_callback`.
-3.  **Incorrect Method Signatures:** After fixing the names, a series of `TypeError` exceptions occurred due to unexpected keyword arguments (`tool`, `tool_args`, `tool_context`). This was a process of iterative discovery to find the exact signature required by the ADK `Runner`.
-4.  **Sync/Async Mismatch:** The final blocker was a `TypeError: object NoneType can't be used in 'await' expression`. This revealed that the ADK `Runner` requires plugin callbacks to be `async def` methods.
-
-**Current Status:** The next step is to apply the `async` keyword to the plugin's methods, which is the final identified fix.
-
-*   **Next Step:** Begin Phase 3: Agent-to-Agent (A2A) Communication.
+**Progress Notes:**
+*   **Shutdown Stability:** Resolved a critical bug in `main.py` that caused an `AttributeError` during server shutdown or hot-reloading. The shutdown hook was attempting to call `.stop()` on a dictionary instead of the `AgentRunner` instance and was not resilient to race conditions. The fix correctly accesses the nested runner object and adds type checking.
+*   **Test Stabilization:** The unit tests for the `EventStreamingPlugin` have been completely rewritten and stabilized. The suite was updated from `unittest` to `pytest`, converted to `async`, and corrected to use the proper method signatures for ADK's `AgentTool`, resolving multiple `TypeError` exceptions. This fully validates the event streaming mechanism.
 
 ---
 

@@ -28,9 +28,12 @@ class TurnRequest(BaseModel):
 async def shutdown_event():
     """Gracefully terminate all running agent subprocesses on server shutdown."""
     print("Server shutting down. Terminating agent processes...")
-    for agent_name, runner in list(running_processes.items()):
-        print(f"Stopping agent: {agent_name}")
-        await runner.stop()
+    for agent_name, agent_info in list(running_processes.items()):
+        if isinstance(agent_info, dict) and "runner" in agent_info:
+            runner = agent_info["runner"]
+            if isinstance(runner, AgentRunner):
+                print(f"Stopping agent: {agent_name}")
+                await runner.stop()
     running_processes.clear()
     print("All agent processes terminated.")
 
