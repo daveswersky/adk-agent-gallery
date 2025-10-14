@@ -176,15 +176,13 @@ async def run_turn(request: Request):
 
 def main():
     """Starts the server."""
-    # Re-parse args for the main function scope, this time without parse_known_args
-    # as uvicorn will not be in the way.
+    # This parser needs to be identical to the global one to ensure consistency
+    # when the script is run directly.
     parser = argparse.ArgumentParser(description="Agent Host Server")
     parser.add_argument("--agent-path", required=True, help="The path to the agent's root directory.")
     parser.add_argument("--port", type=int, required=True, help="The port to run the server on.")
-    parser.add_argument("--event-queue-id", type=str, help="The ID of the event queue.")
+    parser.add_argument("--event-pipe-fd", type=int, help="The file descriptor for the event pipe.")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose debugging output.")
-    parser.add_argument("--manager-address", help="The address of the multiprocessing manager.")
-    parser.add_argument("--manager-authkey", help="The authkey for the multiprocessing manager.")
     final_args = parser.parse_args()
     uvicorn.run(app, host="0.0.0.0", port=final_args.port)
 
