@@ -10,9 +10,6 @@ import multiprocessing as mp
 from backend.connection_manager import manager, running_processes, starting_agents, startup_lock
 from backend.agent_runner import AgentRunner
 
-# Create a single, centralized multiprocessing manager
-mp_manager = mp.Manager()
-
 app = FastAPI()
 
 app.add_middleware(
@@ -125,7 +122,7 @@ async def start_agent_process(agent_name: str, port: int):
         if not agent_path:
             raise FileNotFoundError(f"Agent '{agent_name}' not found.")
 
-        runner = AgentRunner(agent_name, agent_path, port, mp_manager)
+        runner = AgentRunner(agent_name, agent_path, port)
         await runner.start()
 
         agent_url = f"http://localhost:{port}"

@@ -1,53 +1,54 @@
 import json
 import unittest
-from multiprocessing import Queue
+import io
 from backend.event_streaming_plugin import EventStreamingPlugin
+
+# Mock objects to simulate the real tool_call and tool_result objects
+class MockToolCall:
+    def to_dict(self):
+        return {"name": "test_tool", "args": {"arg": "value"}}
+
+class MockToolResult:
+    def to_dict(self):
+        return {"result": "success"}
 
 class TestEventStreamingPlugin(unittest.TestCase):
     """Unit tests for the EventStreamingPlugin."""
 
     def setUp(self):
-        """Set up a queue and the plugin for each test."""
-        self.queue = Queue()
-        self.plugin = EventStreamingPlugin(queue=self.queue)
+        """Set up a mock pipe writer and the plugin for each test."""
+        self.pipe_writer = io.StringIO()
+        self.plugin = EventStreamingPlugin(pipe_writer=self.pipe_writer)
 
-    def test_before_tool_callback(self):
-        """Verify that before_tool_callback puts a correctly formatted event on the queue."""
-        tool_name = "test_tool"
-        tool_input = '{"arg": "value"}'
+    def test_before_tool_call(self):
+        """Verify that before_tool_call writes a correctly formatted event to the pipe."""
+        mock_tool_call = MockToolCall()
         
-        self.plugin.before_tool_callback(tool_name=tool_name, tool_input=tool_input)
+        self.plugin.before_tool_call(tool_call=mock_tool_call)
         
-        # Get the item and parse it. This will timeout if no item exists.
-        event_str = self.queue.get(timeout=1)
+        # Get the string from the buffer and parse it
+        event_str = self.pipe_writer.getvalue().strip()
         event = json.loads(event_str)
-
-        # Verify that the queue is now empty
-        self.assertTrue(self.queue.empty())
         
         # Verify the event content
-        self.assertEqual(event["type"], "tool_start")
-        self.assertEqual(event["tool_name"], tool_name)
-        self.assertEqual(event["tool_input"], tool_input)
+        self.assertEqual(event["event"], "before_tool_call")
+        self.assertEqual(event["tool_call"], mock_tool_call.to_dict())
 
-    def test_after_tool_callback(self):
-        """Verify that after_tool_callback puts a correctly formatted event on the queue."""
-        tool_name = "test_tool"
-        tool_output = '{"result": "success"}'
+    def test_after_tool_call(self):
+        """Verify that after_tool_call writes a correctly formatted event to the pipe."""
+        mock_tool_call = MockToolCall()
+        mock_tool_result = MockToolResult()
         
-        self.plugin.after_tool_callback(tool_name=tool_name, tool_output=tool_output)
+        self.plugin.after_tool_call(tool_call=mock_tool_call, tool_result=mock_tool_result)
         
-        # Get the item and parse it. This will timeout if no item exists.
-        event_str = self.queue.get(timeout=1)
+        # Get the string from the buffer and parse it
+        event_str = self.pipe_writer.getvalue().strip()
         event = json.loads(event_str)
-
-        # Verify that the queue is now empty
-        self.assertTrue(self.queue.empty())
         
         # Verify the event content
-        self.assertEqual(event["type"], "tool_end")
-        self.assertEqual(event["tool_name"], tool_name)
-        self.assertEqual(event["tool_output"], tool_output)
+        self.assertEqual(event["event"], "after_tool_call")
+        self.assertEqual(event["tool_call"], mock_tool_call.to_dict())
+        self.assertEqual(event["tool_result"], mock_tool_result.to_dict())
 
 if __name__ == '__main__':
     unittest.main()

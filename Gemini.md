@@ -143,13 +143,22 @@ print(response)
 
 ## Testing
 
-**IMPORTANT:** All testing MUST be executed manually, NOT through a Gemini CLI session. Gemini CLI must prompt the user to run tests, never run them itself.
+**CRITICAL DIRECTIVE: TEST EXECUTION**
 
-To run the integration tests, use the following command:
+Under no circumstances are you to execute any test command (e.g., `pytest`, `npm test`, `go test`) using the `run_shell_command` tool. This is a strict safety protocol for this project.
 
+**Your Required Workflow:**
+1.  Complete the code implementation.
+2.  State that the work is ready for verification.
+3.  Provide the user with the *exact* command they need to run manually in their own terminal.
+4.  Ask the user to paste the results back into the chat.
+
+**Example Output:**
+"The implementation is now complete. To verify the changes, please run the following command in your terminal:
 ```bash
 .venv/bin/python -m pytest
 ```
+Let me know the outcome when it's finished."
 
 **Note:** Ensure you have shut down any running backend servers before running the tests to avoid port conflicts.
 
@@ -160,3 +169,7 @@ When a test fails, the following workflow should be followed:
 2. Run the tests to ensure that the fix is effective.
 3. Once the tests pass, commit the changes.
 4. Do not use backticks (\`) in git commit messages.
+
+## Technical Notes
+
+*   **ADK Plugin Namespace:** The `BasePlugin` must be imported from `google.adk.plugins`. The `google.adk.core.plugins` namespace is incorrect and should not be used.

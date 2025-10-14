@@ -2,12 +2,33 @@ import asyncio
 import json
 import os
 import re
-from typing import Optional, Any
+from typing import Optional, Any, List
 import httpx
 from backend.connection_manager import manager
 import multiprocessing as mp
-from multiprocessing.managers import BaseManager, SyncManager
 import uuid
+
+class EventStreamProtocol(asyncio.Protocol):
+    """An asyncio protocol that reads newline-delimited JSON events from a pipe."""
+    def __init__(self, agent_name: str):
+        self.agent_name = agent_name
+        self.events: List[dict] = []
+        self.transport: Optional[asyncio.Transport] = None
+
+    def connection_made(self, transport: asyncio.Transport):
+        self.transport = transport
+
+    def data_received(self, data: bytes):
+        lines = data.decode().splitlines()
+        for line in lines:
+            if line:
+                try:
+                    self.events.append(json.loads(line))
+                except json.JSONDecodeError:
+                    print(f"AGENT_EVENT_STREAM({self.agent_name}): Received non-JSON data: {line}", flush=True)
+
+    def clear_events(self):
+        self.events = []
 
 async def _read_stream_and_signal_start(stream, agent_name: str, is_error_stream: bool, started_event: asyncio.Event):
     """
@@ -44,18 +65,12 @@ async def _read_pip_stream(stream, agent_name: str, is_error_stream: bool):
 class AgentRunner:
     """Manages the lifecycle of a single agent subprocess."""
 
-    def __init__(self, agent_name: str, agent_path: str, port: int, mp_manager: SyncManager):
+    def __init__(self, agent_name: str, agent_path: str, port: int):
         self.agent_name = agent_name
         self.agent_path = agent_path
         self.port = port
         self.process: Optional[asyncio.subprocess.Process] = None
-        
-        # IPC setup
-        self.manager = mp_manager
-        self.shared_dict = self.manager.dict()
-        self.event_queue = self.manager.Queue()
-        self.queue_id = f"queue_{uuid.uuid4()}"
-        self.shared_dict[self.queue_id] = self.event_queue
+        self.event_protocol: Optional[EventStreamProtocol] = None
 
 
     async def start(self):
@@ -132,8 +147,8 @@ class AgentRunner:
         
         env["PYTHONPATH"] = os.path.abspath(".") # Add project root to python path
         
-        manager_address = self.manager.address
-        manager_authkey = self.manager._authkey.hex()
+        # Create the pipe for event streaming
+        read_fd, write_fd = os.pipe()
 
         command = [
             python_executable, 
@@ -141,9 +156,7 @@ class AgentRunner:
             agent_host_script, 
             "--agent-path", self.agent_path, 
             "--port", str(self.port),
-            "--event-queue-id", self.queue_id,
-            "--manager-address", str(manager_address),
-            "--manager-authkey", manager_authkey
+            "--event-pipe-fd", str(write_fd)
         ]
 
         self.process = await asyncio.create_subprocess_exec(
@@ -151,7 +164,19 @@ class AgentRunner:
             cwd=self.agent_path,
             env=env,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            stderr=asyncio.subprocess.PIPE,
+            pass_fds=[write_fd] # Pass the write-end of the pipe to the child
+        )
+
+        # The parent process no longer needs the write-end
+        os.close(write_fd)
+
+        # Connect the read-end of the pipe to an asyncio protocol
+        loop = asyncio.get_running_loop()
+        read_pipe = os.fdopen(read_fd, 'r')
+        transport, self.event_protocol = await loop.connect_read_pipe(
+            lambda: EventStreamProtocol(self.agent_name),
+            read_pipe
         )
 
         started_event = asyncio.Event()
@@ -164,9 +189,8 @@ class AgentRunner:
         """Sends a prompt to the agent and returns the response and events."""
         url = f"http://localhost:{self.port}/"
         
-        # Clear the queue before the turn
-        while not self.event_queue.empty():
-            self.event_queue.get()
+        if self.event_protocol:
+            self.event_protocol.clear_events()
 
         async with httpx.AsyncClient() as client:
             try:
@@ -175,11 +199,7 @@ class AgentRunner:
                 
                 agent_response = response.json().get("response", "")
                 
-                events = []
-                q = self.shared_dict[self.queue_id]
-                while not q.empty():
-                    event_str = q.get()
-                    events.append(json.loads(event_str))
+                events = self.event_protocol.events if self.event_protocol else []
 
                 return {"response": agent_response, "events": events}
 

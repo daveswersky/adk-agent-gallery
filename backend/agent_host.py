@@ -60,10 +60,8 @@ def load_env_file(filepath, verbose=False):
 parser = argparse.ArgumentParser(description="Agent Host Server")
 parser.add_argument("--agent-path", required=True, help="The path to the agent's root directory.")
 parser.add_argument("--port", type=int, required=True, help="The port to run the server on.")
-parser.add_argument("--event-queue-id", type=str, help="The ID of the event queue.")
+parser.add_argument("--event-pipe-fd", type=int, help="The file descriptor for the event pipe.")
 parser.add_argument("--verbose", action="store_true", help="Enable verbose debugging output.")
-parser.add_argument("--manager-address", help="The address of the multiprocessing manager.")
-parser.add_argument("--manager-authkey", help="The authkey for the multiprocessing manager.")
 # Use parse_known_args to avoid conflicts with uvicorn's args
 args, _ = parser.parse_known_args()
 
@@ -113,22 +111,10 @@ async def lifespan(app: FastAPI):
         session_service = InMemorySessionService()
 
         plugins = []
-        if args.event_queue_id and args.manager_address and args.manager_authkey:
-            # The manager is created in the parent process. We connect to it here.
-            class QueueManager(BaseManager):
-                pass
-            
-            QueueManager.register('dict')
-            
-            manager_address = ast.literal_eval(args.manager_address)
-            manager_authkey = bytes.fromhex(args.manager_authkey)
-
-            manager = QueueManager(address=manager_address, authkey=manager_authkey)
-            manager.connect()
-
-            shared_dict = manager.dict()
-            event_queue = shared_dict[args.event_queue_id]
-            plugins.append(EventStreamingPlugin(queue=event_queue))
+        if args.event_pipe_fd is not None:
+            # Create a file-like object from the file descriptor for writing
+            pipe_writer = os.fdopen(args.event_pipe_fd, 'w')
+            plugins.append(EventStreamingPlugin(pipe_writer=pipe_writer))
 
         app.state.agent_runner = Runner(
             agent=root_agent, 
