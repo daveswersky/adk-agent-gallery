@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Agent, AgentStatus, ServerMessage } from '../types';
+import { Agent, AgentStatus, ServerMessage, AgentEvent } from '../types';
 
 const MANAGEMENT_URL = 'ws://localhost:8000/ws';
 const AGENTS_URL = 'http://localhost:8000/agents';
@@ -8,6 +8,7 @@ export const useManagementSocket = ({ onAgentStarted }: { onAgentStarted: (agent
   const [agents, setAgents] = useState<Agent[]>([]);
   const [logs, setLogs] = useState<string[]>([]);
   const [isConnected, setIsConnected] = useState(false);
+  const [agentEvents, setAgentEvents] = useState<Record<string, AgentEvent[]>>({});
   const ws = useRef<WebSocket | null>(null);
   const onAgentStartedRef = useRef(onAgentStarted);
   const reconnectTimer = useRef<NodeJS.Timeout | null>(null);
@@ -19,6 +20,10 @@ export const useManagementSocket = ({ onAgentStarted }: { onAgentStarted: (agent
 
   const appendLog = useCallback((log: string) => {
     setLogs(prev => [...prev.slice(-200), log]);
+  }, []);
+
+  const clearAgentEvents = useCallback((agentId: string) => {
+    setAgentEvents(prev => ({ ...prev, [agentId]: [] }));
   }, []);
 
   useEffect(() => {
@@ -111,6 +116,12 @@ export const useManagementSocket = ({ onAgentStarted }: { onAgentStarted: (agent
           } else if (message.type === 'log') {
             const { agent, line } = message;
             appendLog(`[${agent}] ${line}`);
+          } else if (message.type === 'agent_event') {
+            const { agent: agentId, data } = message;
+            setAgentEvents(prev => ({
+              ...prev,
+              [agentId]: [...(prev[agentId] || []), data],
+            }));
           }
         } catch (error) {
           console.error("Error parsing message from server:", event.data);
@@ -176,5 +187,5 @@ export const useManagementSocket = ({ onAgentStarted }: { onAgentStarted: (agent
     sendCommand({ action: 'stop_all' });
   };
 
-  return { agents, logs, isConnected, startAgent, stopAgent, stopAllAgents };
+  return { agents, logs, isConnected, agentEvents, clearAgentEvents, startAgent, stopAgent, stopAllAgents };
 };

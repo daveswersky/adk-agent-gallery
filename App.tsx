@@ -18,7 +18,7 @@ const App: React.FC = () => {
     setSelectedAgent(agent);
   }, []);
 
-  const { agents, logs, isConnected, startAgent, stopAgent, stopAllAgents } = useManagementSocket({ onAgentStarted: handleAgentStarted });
+  const { agents, logs, isConnected, agentEvents, clearAgentEvents, startAgent, stopAgent, stopAllAgents } = useManagementSocket({ onAgentStarted: handleAgentStarted });
 
   // State for resizable panes
   const [sidebarWidth, setSidebarWidth] = useState(384); // Corresponds to w-96
@@ -117,7 +117,11 @@ const App: React.FC = () => {
       
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
         <div className="flex-1 min-h-0">
-          <ChatInterface agent={selectedAgent} />
+          <ChatInterface
+            agent={selectedAgent}
+            agentEvents={agentEvents[selectedAgent?.id || ''] || []}
+            clearAgentEvents={() => clearAgentEvents(selectedAgent?.id || '')}
+          />
         </div>
 
         <div

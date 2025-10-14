@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import type { Agent, ChatMessage } from '../types';
+import type { Agent, ChatMessage, AgentEvent } from '../types';
 import Session, { LoadingStatus } from '../services/sessionService';
 import { sessionManager } from '../services/sessionManager';
 import { SendIcon, UserIcon, BotIcon, SpinnerIcon, TransferIcon, FileUploadIcon, ToolIcon } from './icons';
@@ -8,6 +8,8 @@ import { causeError } from '../services/agentService';
 
 interface ChatInterfaceProps {
   agent: Agent | null;
+  agentEvents: AgentEvent[];
+  clearAgentEvents: () => void;
 }
 
 const ChatBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
@@ -56,7 +58,7 @@ const LoadingIndicator: React.FC<{ status: LoadingStatus }> = ({ status }) => {
     );
 };
 
-export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent }) => {
+export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, agentEvents, clearAgentEvents }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loadingStatus, setLoadingStatus] = useState<LoadingStatus | null>(null);
@@ -101,6 +103,31 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent }) => {
       inputRef.current?.focus();
     }
   }, [loadingStatus]);
+
+  // Effect to process real-time agent events from the WebSocket
+  useEffect(() => {
+    if (!currentSession) return;
+
+    for (const event of agentEvents) {
+      if (event.event === 'before_tool_call') {
+        const toolName = event.tool_call.name;
+        setLoadingStatus({ type: 'tool_use', message: `Using ${toolName} tool...` });
+        const toolArgs = JSON.stringify(event.tool_call.args, null, 2);
+        currentSession.history.push({ role: 'tool', content: `Calling tool: ${toolName}\nArguments:\n${toolArgs}` });
+        setMessages([...currentSession.history]);
+      } else if (event.event === 'after_tool_call') {
+        setLoadingStatus({ type: 'thinking', message: 'Thinking...' });
+        const toolName = event.tool_call.name;
+        const toolResult = JSON.stringify(event.tool_result, null, 2);
+        currentSession.history.push({ role: 'tool', content: `Tool ${toolName} returned:\n${toolResult}` });
+        setMessages([...currentSession.history]);
+      }
+    }
+    // We've processed the events, clear them so they aren't re-processed
+    if (agentEvents.length > 0) {
+      clearAgentEvents();
+    }
+  }, [agentEvents, currentSession, clearAgentEvents]);
 
   if (!agent) {
     return (
@@ -164,19 +191,12 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent }) => {
     setLoadingStatus({ type: 'thinking', message: 'Thinking...' });
     
     try {
-        for await (const event of currentSession.runTurn(currentInput, currentFile)) {
-            if (event.type === 'tool_call') {
-                const toolName = event.content.name;
-                setLoadingStatus({ type: 'tool_use', message: `Using ${toolName} tool...` });
-                setMessages([...currentSession.history]);
-            } else if (event.type === 'tool_result') {
-                setLoadingStatus({ type: 'thinking', message: 'Thinking...' });
-                setMessages([...currentSession.history]);
-            } else if (event.type === 'final_answer') {
-                // The session service now manages the history, so we just sync it.
-                setMessages([...currentSession.history]);
-            }
-        }
+        // Clear any stale events from a previous run
+        clearAgentEvents();
+        // The runTurn method now returns only the final answer
+        await currentSession.runTurn(currentInput, currentFile);
+        // The session history has been updated by the runTurn call and the event handler
+        setMessages([...currentSession.history]);
     } catch (error) {
         const errorMessageContent = error instanceof Error ? error.message : 'Sorry, there was an error processing your request.';
         setMessages([...currentSession.history, { role: 'model', content: errorMessageContent }]);

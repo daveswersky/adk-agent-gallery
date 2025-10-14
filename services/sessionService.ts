@@ -88,28 +88,14 @@ class Session {
         });
     }
 
-    async *runTurn(prompt: string, file: File | null = null): AsyncGenerator<AgentEvent> {
+    async runTurn(prompt: string, file: File | null = null): Promise<string> {
         const url = `${API_BASE_URL}/run_turn`;
         
-        const parts: Array<any> = [{ text: prompt }];
         let historyPrompt = prompt;
-
         if (file) {
-            try {
-                const base64String = await fileToBase64(file);
-                parts.push({
-                    inline_data: {
-                        mime_type: file.type,
-                        data: base64String,
-                        display_name: file.name,
-                    },
-                });
-                // Add a reference to the file in the prompt for history
-                historyPrompt += `\n[File attached: ${file.name}]`;
-            } catch (error) {
-                console.error("Error encoding file to Base64:", error);
-                throw new Error("Failed to process file for upload.");
-            }
+            // For simplicity, we're not handling file uploads in this simplified model.
+            // The file handling logic would need to be adapted if required.
+            historyPrompt += `\n[File attached: ${file.name}]`;
         }
 
         const body = {
@@ -138,27 +124,12 @@ class Session {
 
         const responseData = await response.json();
         const agentResponse = responseData.response;
-        const events = responseData.events || [];
-
-        for (const event of events) {
-            if (event.event === 'before_tool_call') {
-                const toolName = event.tool_call.name;
-                const toolArgs = JSON.stringify(event.tool_call.args, null, 2);
-                this.history.push({ role: 'tool', content: `Calling tool: ${toolName}\nArguments:\n${toolArgs}` });
-                yield { type: 'tool_call', content: { name: toolName, args: toolArgs } };
-            } else if (event.event === 'after_tool_call') {
-                const toolName = event.tool_call.name;
-                const toolResult = JSON.stringify(event.tool_result, null, 2);
-                this.history.push({ role: 'tool', content: `Tool ${toolName} returned:\n${toolResult}` });
-                yield { type: 'tool_result', name: toolName, content: toolResult };
-            }
-        }
 
         this.history.push({ role: 'model', content: agentResponse });
         
         await this.recordRequest(requestClone, response, JSON.stringify(responseData));
 
-        yield { type: 'final_answer', content: agentResponse };
+        return agentResponse;
     }
 }
 

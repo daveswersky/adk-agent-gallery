@@ -9,10 +9,9 @@ import multiprocessing as mp
 import uuid
 
 class EventStreamProtocol(asyncio.Protocol):
-    """An asyncio protocol that reads newline-delimited JSON events from a pipe."""
+    """An asyncio protocol that reads newline-delimited JSON events from a pipe and broadcasts them."""
     def __init__(self, agent_name: str):
         self.agent_name = agent_name
-        self.events: List[dict] = []
         self.transport: Optional[asyncio.Transport] = None
 
     def connection_made(self, transport: asyncio.Transport):
@@ -23,12 +22,15 @@ class EventStreamProtocol(asyncio.Protocol):
         for line in lines:
             if line:
                 try:
-                    self.events.append(json.loads(line))
+                    event_data = json.loads(line)
+                    # Broadcast the event over the WebSocket manager immediately
+                    asyncio.create_task(manager.broadcast(json.dumps({
+                        "type": "agent_event",
+                        "agent": self.agent_name,
+                        "data": event_data
+                    })))
                 except json.JSONDecodeError:
                     print(f"AGENT_EVENT_STREAM({self.agent_name}): Received non-JSON data: {line}", flush=True)
-
-    def clear_events(self):
-        self.events = []
 
 async def _read_stream_and_signal_start(stream, agent_name: str, is_error_stream: bool, started_event: asyncio.Event):
     """
@@ -186,12 +188,9 @@ class AgentRunner:
         await started_event.wait()
 
     async def run_turn(self, prompt: str) -> dict:
-        """Sends a prompt to the agent and returns the response and events."""
+        """Sends a prompt to the agent and returns the response."""
         url = f"http://localhost:{self.port}/"
         
-        if self.event_protocol:
-            self.event_protocol.clear_events()
-
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.post(url, json={"prompt": prompt}, timeout=60)
@@ -199,13 +198,11 @@ class AgentRunner:
                 
                 agent_response = response.json().get("response", "")
                 
-                events = self.event_protocol.events if self.event_protocol else []
-
-                return {"response": agent_response, "events": events}
+                return {"response": agent_response}
 
             except httpx.RequestError as e:
                 await manager.broadcast(json.dumps({"type": "log", "agent": self.agent_name, "line": f"[ERROR] Could not connect to agent: {e}"}))
-                return {"response": "Error: Could not connect to the agent.", "events": []}
+                return {"response": "Error: Could not connect to the agent."}
 
     async def stop(self):
         """Stops the agent subprocess."""
