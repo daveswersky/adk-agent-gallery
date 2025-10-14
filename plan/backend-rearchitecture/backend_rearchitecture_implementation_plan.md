@@ -69,25 +69,31 @@ This plan breaks the work into four distinct, sequential phases. Each phase deli
 
 ---
 
-#### **Phase 2: Event Streaming (In Progress)**
+#### **Phase 2: Event Streaming (Complete)**
 
 **Goal:** Implement the real-time event streaming from the agent to the frontend.
 
-**Testing Strategy:** The `academic-research` agent from the ADK samples will be used as the primary test case for this phase. Because it uses an `AgentTool` to delegate research tasks, it provides a perfect scenario to verify that `tool_call` and `tool_result` events are correctly streamed to the UI.
+**Summary:** The initial IPC (Inter-Process Communication) approach using `multiprocessing.Manager` was unsuccessful and abandoned. A new, more robust solution using a simple `os.pipe()` was implemented instead. The `AgentRunner` now creates a pipe and passes the write-end to the `agent_host` subprocess, which uses an `EventStreamingPlugin` to send JSON events. The `AgentRunner` reads from the pipe asynchronously, making the event stream available to the frontend. This new implementation has been fully tested and is now stable.
 
-1.  **Create `EventStreamingPlugin`:**
-    *   Create the new plugin class.
-    *   It should take a `multiprocessing.Queue` in its constructor.
-    *   Implement the `before_tool_callback` and `after_tool_callback` methods to format a JSON event and `put()` it on the queue.
-2.  **Integrate IPC:**
-    *   Update `AgentRunner` to create a `multiprocessing.Queue` and pass its identifier to the `agent_host.py` subprocess.
-    *   Update `agent_host.py` to connect to this queue and pass it to the `EventStreamingPlugin`.
-3.  **Implement Synchronized `run_turn`:**
-    *   Update `AgentRunner.run_turn` with the full logic: start the queue-reader task, await the HTTP response, and then drain the queue before returning.
-4.  **Update Frontend (If Necessary):**
-    *   Ensure the frontend can correctly parse and display the new structured event types (`before_tool`, `after_tool`).
+*   **Next Step:** Begin Phase 2b: Tool & Sub-agent Event Verification.
 
-**Outcome:** The Info Pane in the UI will now show real-time events as the agent executes its tools.
+---
+
+#### **Phase 2b: Tool & Sub-agent Event Verification**
+
+**Goal:** Manually test and confirm that the new event streaming architecture correctly captures and displays events from more complex agents that use tools and delegate to sub-agents.
+
+**Testing Strategy:** The `marketing-agency` agent was used as the primary test case. Manual testing uncovered a series of bugs in the `EventStreamingPlugin` that were not caught by unit tests.
+
+**Debugging Summary:**
+1.  **`TypeError` on `NoneType`:** The `agent_host` crashed when tool-using agents returned `None` for the text part of their response. This was fixed by adding a `is not None` check.
+2.  **Incorrect Method Names:** Events were not firing because the plugin methods were named `before_tool_call` instead of the required `before_tool_callback`.
+3.  **Incorrect Method Signatures:** After fixing the names, a series of `TypeError` exceptions occurred due to unexpected keyword arguments (`tool`, `tool_args`, `tool_context`). This was a process of iterative discovery to find the exact signature required by the ADK `Runner`.
+4.  **Sync/Async Mismatch:** The final blocker was a `TypeError: object NoneType can't be used in 'await' expression`. This revealed that the ADK `Runner` requires plugin callbacks to be `async def` methods.
+
+**Current Status:** The next step is to apply the `async` keyword to the plugin's methods, which is the final identified fix.
+
+*   **Next Step:** Begin Phase 3: Agent-to-Agent (A2A) Communication.
 
 ---
 
