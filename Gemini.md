@@ -141,6 +141,14 @@ print(response)
     ```
 3.  Open a web browser to the URL provided by Vite (usually `http://localhost:5173`).
 
+## **CRITICAL DIRECTIVE: Interaction Workflow**
+
+**Your workflow for any task that involves code modification MUST follow these steps:**
+1.  **Diagnose:** Analyze the user's request, investigate the codebase, and clearly explain the root cause of the issue or the plan for the new feature.
+2.  **Propose:** Present all intended code modifications in a clear, "before-and-after" format for user review. Use the `replace` tool's output format as a template.
+3.  **Wait:** Do not use any tool that modifies a file (`replace`, `write_file`) until you receive explicit approval from the user (e.g., "proceed," "make the change," "yes").
+4.  **Act:** Once approval is given, execute the proposed changes.
+
 ## Testing
 
 **CRITICAL DIRECTIVE: TEST EXECUTION**
@@ -168,8 +176,18 @@ When a test fails, the following workflow should be followed:
 1. Fix the code to address the test failure.
 2. Run the tests to ensure that the fix is effective.
 3. Once the tests pass, commit the changes.
-4. Do not use backticks (\`) in git commit messages.
+4. Do not use backticks (`) in git commit messages.
+
+### Interaction Directives
+1.  **Diagnose First, Act Second:** Always analyze the problem and explain the root cause and proposed solution *before* making any changes.
+2.  **Propose Changes as a Preview:** Present all code modifications in a clear, "before-and-after" format to allow for review.
+3.  **Wait for Explicit Approval:** Do not use any tool that modifies a file (`replace`, `write_file`) until given a clear instruction to proceed (e.g., "proceed," "make the change").
+4.  **Maintain a Single Focus:** Address one logical issue at a time, typically by modifying only one file per turn.
 
 ## Technical Notes
 
 *   **ADK Plugin Namespace:** The `BasePlugin` must be imported from `google.adk.plugins`. The `google.adk.core.plugins` namespace is incorrect and should not be used.
+
+## Project Directives
+
+*   All planning files are stored and written to the `plan` directory and its subdirectories.

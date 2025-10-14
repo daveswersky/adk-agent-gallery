@@ -97,7 +97,7 @@ async def lifespan(app: FastAPI):
         app_name = os.path.basename(args.agent_path)
         module_name = app_name.replace('-', '_')
 
-        # Add agent's root directory to sys.path to allow for package-based imports
+        # Add agent's root directory to sys.path to allow for package-based imports.
         sys.path.insert(0, args.agent_path)
 
         try:

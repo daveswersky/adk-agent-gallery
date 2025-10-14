@@ -1,5 +1,6 @@
 import json
 from google.adk.plugins import BasePlugin
+from google.adk.tools import AgentTool
 
 class EventStreamingPlugin(BasePlugin):
     def __init__(self, pipe_writer):
@@ -9,19 +10,31 @@ class EventStreamingPlugin(BasePlugin):
     async def before_tool_callback(self, tool, tool_args, tool_context) -> None:
         event = json.dumps({
             "event": "before_tool_call",
-            "tool_call": tool_args
+            "tool_call": {
+                "name": tool.name,
+                "args": tool_args
+            }
         })
         self._pipe_writer.write(event + '\n')
         self._pipe_writer.flush()
 
     async def after_tool_callback(self, tool, tool_args, tool_context, result) -> None:
+        # If the tool is an AgentTool, its final response should be treated as a
+        # conversational turn, not a tool result. Suppress the event here to
+        # allow the parent agent to process it as the final answer.
+        if isinstance(tool, AgentTool):
+            return
+
         tool_result_payload = result
         if hasattr(result, 'to_dict'):
             tool_result_payload = result.to_dict()
 
         event = json.dumps({
             "event": "after_tool_call",
-            "tool_call": tool_args,
+            "tool_call": {
+                "name": tool.name,
+                "args": tool_args
+            },
             "tool_result": tool_result_payload
         })
         self._pipe_writer.write(event + '\n')
