@@ -141,12 +141,16 @@ class Session {
         const events = responseData.events || [];
 
         for (const event of events) {
-            if (event.type === 'tool_start') {
-                this.history.push({ role: 'tool', content: `Calling tool: ${event.tool_name}\nArguments:\n${event.tool_input}` });
-                yield { type: 'tool_call', content: { name: event.tool_name, args: event.tool_input } };
-            } else if (event.type === 'tool_end') {
-                this.history.push({ role: 'tool', content: `Tool ${event.tool_name} returned:\n${event.tool_output}` });
-                yield { type: 'tool_result', name: event.tool_name, content: event.tool_output };
+            if (event.event === 'before_tool_call') {
+                const toolName = event.tool_call.name;
+                const toolArgs = JSON.stringify(event.tool_call.args, null, 2);
+                this.history.push({ role: 'tool', content: `Calling tool: ${toolName}\nArguments:\n${toolArgs}` });
+                yield { type: 'tool_call', content: { name: toolName, args: toolArgs } };
+            } else if (event.event === 'after_tool_call') {
+                const toolName = event.tool_call.name;
+                const toolResult = JSON.stringify(event.tool_result, null, 2);
+                this.history.push({ role: 'tool', content: `Tool ${toolName} returned:\n${toolResult}` });
+                yield { type: 'tool_result', name: toolName, content: toolResult };
             }
         }
 
