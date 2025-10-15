@@ -97,31 +97,23 @@ async def run_turn(request: TurnRequest):
     return turn_result
 
 async def start_agent_process(agent_name: str, port: int):
-    """Starts an ADK agent on a specific port."""
+    """Starts and monitors an agent, ensuring cleanup on termination."""
     await manager.broadcast(json.dumps({"type": "log", "agent": agent_name, "line": "Agent startup process started."}))
+    
     async with startup_lock:
-        if agent_name in running_processes:
-            await manager.broadcast(json.dumps({"type": "status", "agent": agent_name, "status": "already_running"}))
+        if agent_name in running_processes or agent_name in starting_agents:
+            status = "already_running" if agent_name in running_processes else "starting"
+            await manager.broadcast(json.dumps({"type": "status", "agent": agent_name, "status": status}))
             return
-
-        if agent_name in starting_agents:
-            await manager.broadcast(json.dumps({"type": "log", "agent": agent_name, "line": f"Agent '{agent_name}' is already in the process of starting."}))
-            return
-        
         starting_agents.add(agent_name)
 
+    runner = None
     try:
         possible_paths = [
             os.path.abspath(f"agents/{agent_name}"),
             os.path.abspath(f"agents/adk-samples/python/agents/{agent_name}")
         ]
-        
-        agent_path = ""
-        for path in possible_paths:
-            if os.path.exists(path):
-                agent_path = path
-                break
-        
+        agent_path = next((path for path in possible_paths if os.path.exists(path)), None)
         if not agent_path:
             raise FileNotFoundError(f"Agent '{agent_name}' not found.")
 
@@ -130,6 +122,7 @@ async def start_agent_process(agent_name: str, port: int):
 
         agent_url = f"http://localhost:{port}"
         running_processes[agent_name] = {"runner": runner, "url": agent_url}
+        starting_agents.remove(agent_name)
         
         await manager.broadcast(json.dumps({
             "type": "status",
@@ -140,8 +133,7 @@ async def start_agent_process(agent_name: str, port: int):
         }))
 
         await runner.process.wait()
-        del running_processes[agent_name]
-        await manager.broadcast(json.dumps({"type": "status", "agent": agent_name, "status": "stopped", "url": None}))
+        print(f"--- DEBUG: Process for '{agent_name}' terminated.")
 
     except Exception as e:
         error_msg = f"An unexpected error occurred while starting {agent_name}: {e}"
@@ -149,16 +141,27 @@ async def start_agent_process(agent_name: str, port: int):
         await manager.broadcast(json.dumps({"type": "log", "agent": agent_name, "line": f"[FATAL] {error_msg}"}))
         await manager.broadcast(json.dumps({"type": "status", "agent": agent_name, "status": "failed"}))
     finally:
-        starting_agents.remove(agent_name)
+        print(f"--- DEBUG: Cleaning up state for '{agent_name}'.")
+        if agent_name in running_processes:
+            del running_processes[agent_name]
+        if agent_name in starting_agents:
+            starting_agents.remove(agent_name)
+        
+        await manager.broadcast(json.dumps({"type": "status", "agent": agent_name, "status": "stopped", "url": None}))
+        print(f"--- DEBUG: Cleanup for '{agent_name}' complete.")
 
 
 async def stop_agent_process(agent_name: str):
     """Stops a running ADK agent process."""
+    print(f"--- DEBUG: Received stop command for '{agent_name}'")
     if agent_name in running_processes:
         runner = running_processes[agent_name]["runner"]
+        print(f"--- DEBUG: Found runner. Calling runner.stop().")
+        # This will terminate the process, which unblocks the 'await wait()'
+        # in the original start_agent_process task.
         await runner.stop()
         return
-    await manager.broadcast(json.dumps({"type": "status", "agent": agent_name, "status": "not_running"}))
+    print(f"--- DEBUG: Agent '{agent_name}' not found in running_processes.")
 
 
 async def stop_all_agents():
@@ -174,14 +177,17 @@ async def websocket_endpoint(websocket: WebSocket):
         await websocket.send_text(json.dumps({"type": "log", "agent": "server", "line": "Connection established."}))
 
         for agent_name, agent_info in running_processes.items():
-            status_message = {
-                "type": "status",
-                "agent": agent_name,
-                "status": "running",
-                "pid": agent_info["runner"].process.pid,
-                "url": agent_info["url"]
-            }
-            await websocket.send_text(json.dumps(status_message))
+            runner = agent_info.get("runner")
+            # Only send status if the runner and its process exist and are still running.
+            if runner and runner.process and runner.process.returncode is None:
+                status_message = {
+                    "type": "status",
+                    "agent": agent_name,
+                    "status": "running",
+                    "pid": runner.process.pid,
+                    "url": agent_info.get("url")
+                }
+                await websocket.send_text(json.dumps(status_message))
 
         while True:
             data = await websocket.receive_text()
@@ -200,4 +206,13 @@ async def websocket_endpoint(websocket: WebSocket):
                 asyncio.create_task(stop_all_agents())
 
     except WebSocketDisconnect:
+        # In the context of the E2E tests, a disconnect signifies the end of a
+        # test run. To prevent state from leaking between tests, we will stop
+        # all running agents.
+        # NOTE: In a multi-client production environment, this would be unsafe
+        # as it would terminate agents for all connected clients. A more robust
+        # solution would involve associating agent processes with specific
+        # WebSocket connections.
+        print("Client disconnected. Stopping all agents to clean up test state.")
+        asyncio.create_task(stop_all_agents())
         manager.disconnect(websocket)
