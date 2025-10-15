@@ -213,7 +213,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, agentEvents
         <p className="text-sm text-adk-text-secondary">Status: <span className="text-status-running font-semibold">Running</span> at {agent.url}</p>
       </header>
       
-      <main ref={chatContainerRef} className="flex-1 overflow-y-auto p-6 space-y-6">
+      <main ref={chatContainerRef} data-testid="chat-history" className="flex-1 overflow-y-auto p-6 space-y-6">
         {messages.map((msg, index) => <ChatBubble key={index} message={msg} />)}
         {loadingStatus && <LoadingIndicator status={loadingStatus} />}
       </main>
@@ -222,6 +222,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, agentEvents
         <form onSubmit={handleSubmit} className="flex items-center bg-adk-dark-2 border border-adk-dark-3 rounded-lg p-2 focus-within:ring-2 focus-within:ring-adk-accent">
           <input
             ref={inputRef}
+            data-testid="chat-input"
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -238,7 +239,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, agentEvents
           <button type="button" onClick={() => fileInputRef.current?.click()} disabled={!!loadingStatus} className="p-2 rounded-md hover:bg-adk-dark-3 text-adk-text-secondary disabled:text-adk-dark-3 disabled:cursor-not-allowed transition-colors">
             <FileUploadIcon className="w-6 h-6" />
           </button>
-          <button type="submit" disabled={!!loadingStatus || (!input.trim() && !selectedFile)} className="p-2 rounded-md bg-adk-accent hover:bg-adk-accent-hover text-white disabled:bg-adk-dark-3 disabled:text-adk-text-secondary disabled:cursor-not-allowed transition-colors">
+          <button data-testid="send-button" type="submit" disabled={!!loadingStatus || (!input.trim() && !selectedFile)} className="p-2 rounded-md bg-adk-accent hover:bg-adk-accent-hover text-white disabled:bg-adk-dark-3 disabled:text-adk-text-secondary disabled:cursor-not-allowed transition-colors">
             <SendIcon className="w-6 h-6" />
           </button>
         </form>

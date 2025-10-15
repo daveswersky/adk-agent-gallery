@@ -82,7 +82,11 @@ export const InfoPane: React.FC<InfoPaneProps> = ({ logs, agents, selectedAgent 
           </div>
         );
       case 'Events':
-        return <LogViewer logs={filteredLogs} />;
+        return (
+          <div data-testid="info-pane-logs" className="h-full">
+            <LogViewer logs={filteredLogs} />
+          </div>
+        );
       case 'Sessions':
         return (
           <div className="p-4 font-mono text-sm text-adk-text-secondary space-y-2 h-full overflow-y-auto">

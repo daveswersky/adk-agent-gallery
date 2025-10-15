@@ -27,6 +27,5 @@ dist-ssr
 # Python
 __pycache__/
 *.pyc
-.venv
-.venv*
-__pycache__/
+.venv/
+.venv*/

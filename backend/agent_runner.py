@@ -206,6 +206,9 @@ class AgentRunner:
 
     async def stop(self):
         """Stops the agent subprocess."""
+        print("--- DEBUG: AgentRunner.stop() called.")
         if self.process and self.process.returncode is None:
+            print(f"--- DEBUG: Terminating process with PID {self.process.pid}")
             self.process.terminate()
             await self.process.wait()
+            print("--- DEBUG: Process termination awaited.")

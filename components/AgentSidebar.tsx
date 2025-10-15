@@ -49,16 +49,20 @@ const AgentListItem: React.FC<{
 
   return (
     <div
+      data-testid={`agent-card-${agent.id}`}
       onClick={() => isRunning && onSelect(agent)}
       className={`p-2 rounded-lg border flex flex-col transition-colors duration-200 ${isActive ? 'bg-adk-accent/20 border-adk-accent' : 'border-adk-dark-3 hover:bg-adk-dark-3'} ${isRunning ? 'cursor-pointer' : ''}`}
     >
       <div className="flex justify-between items-center mb-1">
         <h4 className="font-semibold text-adk-text truncate pr-2 text-base">{agent.name}</h4>
-        <StatusBadge status={agent.status} />
+        <div data-testid={`agent-status-${agent.id}`}>
+          <StatusBadge status={agent.status} />
+        </div>
       </div>
       <p className="text-xs text-adk-text-secondary mb-2 text-ellipsis overflow-hidden">{agent.description}</p>
       <div className="flex items-center justify-end space-x-2 mt-auto">
         <button
+          data-testid={`start-agent-${agent.id}`}
           onClick={(e) => { e.stopPropagation(); onStart(agent.id); }}
           disabled={agent.status !== AgentStatus.STOPPED}
           className="p-2 text-sm font-medium rounded-md bg-adk-dark-3 hover:bg-adk-accent hover:text-white disabled:bg-adk-dark-3/50 disabled:text-adk-text-secondary disabled:cursor-not-allowed flex items-center transition-colors"
@@ -67,6 +71,7 @@ const AgentListItem: React.FC<{
           {agent.status === AgentStatus.STARTING ? <SpinnerIcon className="animate-spin w-5 h-5" /> : <PlayIcon className="w-5 h-5" />}
         </button>
         <button
+          data-testid={`stop-agent-${agent.id}`}
           onClick={(e) => { e.stopPropagation(); onStop(agent.id); }}
           disabled={!isRunning}
           className="p-2 text-sm font-medium rounded-md bg-adk-dark-3 hover:bg-status-stopped/50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center transition-colors"

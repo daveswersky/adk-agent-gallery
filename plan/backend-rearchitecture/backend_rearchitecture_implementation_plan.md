@@ -28,9 +28,9 @@ This plan breaks the work into four distinct, sequential phases. Each phase deli
 
 #### **Phase 2: Event Streaming**
 
-**Status: Complete** (Pipe-based IPC mechanism and unit tests for the `EventStreamingPlugin` have been implemented and validated.)
+**Status: Complete**
 
-**Goal:** Implement the real-time event streaming from the agent to the frontend.
+**Goal:** Implement real-time event streaming from the agent to the frontend. The implementation, which includes a pipe-based IPC mechanism and an `EventStreamingPlugin` for tool events, has been validated with a full suite of unit tests.
 
 1.  **Create `EventStreamingPlugin`:**
     *   Create the new plugin class.
