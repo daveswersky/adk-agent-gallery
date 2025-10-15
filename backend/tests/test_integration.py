@@ -9,7 +9,7 @@ from websockets import State
 import uvicorn
 import threading
 import time
-from httpx import AsyncClient
+from httpx import AsyncClient, ASGITransport
 
 # Import the FastAPI app
 from backend.main import app
@@ -34,7 +34,7 @@ def live_server():
 @pytest_asyncio.fixture
 async def async_test_client() -> AsyncGenerator[AsyncClient, None]:
     """Fixture for an async test client that calls the app in-memory."""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
 
 # --- Test Code ---
@@ -57,7 +57,7 @@ async def get_message_containing(websocket, text, timeout):
     return None
 
 @pytest_asyncio.fixture
-async def websocket_connection(live_server) -> AsyncGenerator[websockets.WebSocketClientProtocol, None]:
+async def websocket_connection(live_server) -> AsyncGenerator[websockets.ClientConnection, None]:
     """Fixture to establish a websocket connection for each test."""
     try:
         async with websockets.connect(SERVER_URL) as websocket:
@@ -66,12 +66,12 @@ async def websocket_connection(live_server) -> AsyncGenerator[websockets.WebSock
         pytest.fail("Connection to the test server was refused.")
 
 @pytest.mark.asyncio
-async def test_websocket_connection(websocket_connection: websockets.WebSocketClientProtocol):
+async def test_websocket_connection(websocket_connection: websockets.ClientConnection):
     """Tests if a client can successfully connect to the WebSocket server."""
     assert websocket_connection.state == State.OPEN
 
 @pytest.mark.asyncio
-async def test_start_and_stop_agent(websocket_connection: websockets.WebSocketClientProtocol):
+async def test_start_and_stop_agent(websocket_connection: websockets.ClientConnection):
     """Tests the full lifecycle of starting and stopping a single agent."""
     websocket = websocket_connection
     
@@ -90,7 +90,7 @@ async def test_start_and_stop_agent(websocket_connection: websockets.WebSocketCl
     assert stopped_message["agent"] == "greeting_agent"
 
 @pytest.mark.asyncio
-async def test_stop_all_agents(websocket_connection: websockets.WebSocketClientProtocol):
+async def test_stop_all_agents(websocket_connection: websockets.ClientConnection):
     """Tests the 'stop_all' functionality."""
     websocket = websocket_connection
 
