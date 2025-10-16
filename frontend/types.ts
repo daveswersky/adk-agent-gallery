@@ -24,6 +24,11 @@ export interface Agent {
   url?: string;
 }
 
+export interface AgentCode {
+  filename: string;
+  content: string;
+}
+
 export interface ChatMessage {
   role: 'user' | 'model' | 'tool';
   content: string;
