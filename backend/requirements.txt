@@ -3,4 +3,4 @@ uvicorn
 websockets
 pytest
 pytest-asyncio
-google-adk
+google-adkPyYAML==6.0.1
