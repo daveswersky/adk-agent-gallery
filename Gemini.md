@@ -178,6 +178,13 @@ When a test fails, the following workflow should be followed:
 3. Once the tests pass, commit the changes.
 4. Do not use backticks (`) in git commit messages.
 
+**CRITICAL DIRECTIVE: Branching for Development**
+
+All work for designated `EPIC`s and `FEATURE`s **MUST** be performed on a dedicated feature branch, not on `main`.
+
+-   **Branch Naming:** Branches should be named descriptively, for example: `feature/agent-code-view` or `epic/a2a-support-phase1`.
+-   **Branch Verification:** You must periodically check your current branch using `git branch --show-current` to ensure you are not committing work to the `main` branch.
+
 ### Interaction Directives
 1.  **Diagnose First, Act Second:** Always analyze the problem and explain the root cause and proposed solution *before* making any changes.
 2.  **Propose Changes as a Preview:** Present all code modifications in a clear, "before-and-after" format to allow for review.
