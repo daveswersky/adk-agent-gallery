@@ -66,7 +66,13 @@ parser.add_argument("--verbose", action="store_true", help="Enable verbose debug
 args, _ = parser.parse_known_args()
 
 # --- Environment Loading ---
-dotenv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env'))
+
+# The agent_host is always run from within the agent's directory.
+# We load the .env file from the current working directory.
+# For the RAG agent, a custom .env is created by agent_runner.py.
+# For other agents, this will load the project's root .env if it's
+# copied or linked, but will not fail if it's absent.
+dotenv_path = os.path.abspath(os.path.join(os.getcwd(), '.env'))
 load_env_file(dotenv_path, verbose=args.verbose)
 
 google_api_key = os.environ.get("GOOGLE_API_KEY")
@@ -76,6 +82,10 @@ if args.verbose:
     print(f"DEBUG: Initial GOOGLE_API_KEY: {mask_api_key(google_api_key)}", file=sys.stderr, flush=True)
     print(f"DEBUG: Initial GEMINI_API_KEY: {mask_api_key(gemini_api_key)}", file=sys.stderr, flush=True)
 
+if google_api_key and gemini_api_key:
+    if args.verbose:
+        print("DEBUG: Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.", file=sys.stderr, flush=True)
+
 if not google_api_key and gemini_api_key:
     if args.verbose:
         print("DEBUG: GOOGLE_API_KEY not found. Using GEMINI_API_KEY as a fallback.", file=sys.stderr, flush=True)
@@ -83,6 +93,7 @@ if not google_api_key and gemini_api_key:
 
 if args.verbose:
     print(f"INFO: Final GOOGLE_API_KEY: {mask_api_key(os.environ.get('GOOGLE_API_KEY'))}", file=sys.stderr, flush=True)
+    print(f"INFO: GOOGLE_GENAI_USE_VERTEXAI: {os.environ.get('GOOGLE_GENAI_USE_VERTEXAI')}", file=sys.stderr, flush=True)
 # --- End of Environment Loading ---
 
 
@@ -101,6 +112,17 @@ async def lifespan(app: FastAPI):
         sys.path.insert(0, args.agent_path)
 
         try:
+            # Find the subdirectory that contains the agent logic
+            module_name = None
+            for item in os.listdir(args.agent_path):
+                item_path = os.path.join(args.agent_path, item)
+                if os.path.isdir(item_path) and os.path.exists(os.path.join(item_path, 'agent.py')):
+                    module_name = item
+                    break
+            
+            if not module_name:
+                raise ImportError(f"Could not find a valid agent module in {args.agent_path}")
+
             # Import the agent module as part of a package
             agent_module = importlib.import_module(f"{module_name}.agent")
             root_agent = agent_module.root_agent

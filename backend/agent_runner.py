@@ -74,6 +74,42 @@ class AgentRunner:
         self.process: Optional[asyncio.subprocess.Process] = None
         self.event_protocol: Optional[EventStreamProtocol] = None
 
+    async def _prepare_rag_environment(self):
+        """
+        Creates a custom .env file for the RAG agent to ensure it uses
+        Vertex AI with Application Default Credentials.
+        """
+        root_dotenv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env'))
+        agent_dotenv_path = os.path.join(self.agent_path, ".env")
+
+        env_vars = {}
+        if os.path.exists(root_dotenv_path):
+            with open(root_dotenv_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, value = line.split('=', 1)
+                        env_vars[key.strip()] = value.strip()
+        
+        # Remove API keys to force ADC
+        env_vars.pop("GOOGLE_API_KEY", None)
+        env_vars.pop("GEMINI_API_KEY", None)
+        
+        # Set Vertex AI flag and required location/project
+        env_vars["GOOGLE_GENAI_USE_VERTEXAI"] = "TRUE"
+        env_vars["GOOGLE_CLOUD_PROJECT"] = "primaryproject-305315"
+        env_vars["GOOGLE_CLOUD_LOCATION"] = "us-central1"
+        env_vars["RAG_CORPUS"] = "projects/primaryproject-305315/locations/us-central1/ragCorpora/5685794529555251200"
+
+        with open(agent_dotenv_path, 'w') as f:
+            for key, value in env_vars.items():
+                f.write(f'{key}={value}\n')
+        
+        await manager.broadcast(json.dumps({
+            "type": "log", 
+            "agent": self.agent_name, 
+            "line": "Custom .env file for RAG agent created."
+        }))
 
     async def start(self):
         """Creates a venv, installs dependencies, and starts the agent subprocess."""
@@ -109,7 +145,11 @@ class AgentRunner:
             if proc.returncode != 0:
                 raise RuntimeError("Failed to install uv.")
 
-        # 2. Install dependencies (agent and host)
+        # 2. Prepare agent-specific environment if necessary
+        if "RAG" in self.agent_path:
+            await self._prepare_rag_environment()
+
+        # 3. Install dependencies (agent and host)
         await manager.broadcast(json.dumps({"type": "status", "agent": self.agent_name, "status": "installing_dependencies"}))
         env = os.environ.copy()
         env["VIRTUAL_ENV"] = venv_path
@@ -144,10 +184,17 @@ class AgentRunner:
             raise RuntimeError("Failed to install host dependencies.")
 
 
-        # 3. Start the agent
+        # 4. Start the agent
         agent_host_script = os.path.abspath("backend/agent_host.py")
         
-        env["PYTHONPATH"] = os.path.abspath(".") # Add project root to python path
+        # We no longer need to manipulate the env dictionary directly,
+        # as the .env file will be handled by the agent_host.py script.
+        
+        # Explicitly pass Application Default Credentials if they exist.
+        # This is crucial for subprocesses to authenticate with Vertex AI.
+        adc_path = os.path.expanduser("~/.config/gcloud/application_default_credentials.json")
+        if os.path.exists(adc_path):
+            env["GOOGLE_APPLICATION_CREDENTIALS"] = adc_path
         
         # Create the pipe for event streaming
         read_fd, write_fd = os.pipe()
@@ -158,7 +205,8 @@ class AgentRunner:
             agent_host_script, 
             "--agent-path", self.agent_path, 
             "--port", str(self.port),
-            "--event-pipe-fd", str(write_fd)
+            "--event-pipe-fd", str(write_fd),
+            "--verbose"
         ]
 
         self.process = await asyncio.create_subprocess_exec(
