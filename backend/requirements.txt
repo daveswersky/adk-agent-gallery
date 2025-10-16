@@ -4,3 +4,4 @@ websockets
 pytest
 pytest-asyncio
 google-adk
+PyYAML==6.0.1

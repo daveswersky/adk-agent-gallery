@@ -4,6 +4,7 @@ import os
 import re
 from typing import Optional, Any, List
 import httpx
+import yaml
 from backend.connection_manager import manager
 import multiprocessing as mp
 import uuid
@@ -74,43 +75,6 @@ class AgentRunner:
         self.process: Optional[asyncio.subprocess.Process] = None
         self.event_protocol: Optional[EventStreamProtocol] = None
 
-    async def _prepare_rag_environment(self):
-        """
-        Creates a custom .env file for the RAG agent to ensure it uses
-        Vertex AI with Application Default Credentials.
-        """
-        root_dotenv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env'))
-        agent_dotenv_path = os.path.join(self.agent_path, ".env")
-
-        env_vars = {}
-        if os.path.exists(root_dotenv_path):
-            with open(root_dotenv_path, 'r') as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith('#') and '=' in line:
-                        key, value = line.split('=', 1)
-                        env_vars[key.strip()] = value.strip()
-        
-        # Remove API keys to force ADC
-        env_vars.pop("GOOGLE_API_KEY", None)
-        env_vars.pop("GEMINI_API_KEY", None)
-        
-        # Set Vertex AI flag and required location/project
-        env_vars["GOOGLE_GENAI_USE_VERTEXAI"] = "TRUE"
-        env_vars["GOOGLE_CLOUD_PROJECT"] = "primaryproject-305315"
-        env_vars["GOOGLE_CLOUD_LOCATION"] = "us-central1"
-        env_vars["RAG_CORPUS"] = "projects/primaryproject-305315/locations/us-central1/ragCorpora/5685794529555251200"
-
-        with open(agent_dotenv_path, 'w') as f:
-            for key, value in env_vars.items():
-                f.write(f'{key}={value}\n')
-        
-        await manager.broadcast(json.dumps({
-            "type": "log", 
-            "agent": self.agent_name, 
-            "line": "Custom .env file for RAG agent created."
-        }))
-
     async def start(self):
         """Creates a venv, installs dependencies, and starts the agent subprocess."""
         venv_path = os.path.join(self.agent_path, ".venv")
@@ -118,6 +82,7 @@ class AgentRunner:
         uv_executable = os.path.join(venv_path, "bin", "uv")
         requirements_path = os.path.join(self.agent_path, "requirements.txt")
         host_requirements_path = os.path.abspath("backend/agent_host_requirements.txt")
+        config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'agents.config.yaml'))
 
         # 1. Create virtual environment if it doesn't exist
         if not os.path.exists(venv_path):
@@ -145,13 +110,62 @@ class AgentRunner:
             if proc.returncode != 0:
                 raise RuntimeError("Failed to install uv.")
 
-        # 2. Prepare agent-specific environment if necessary
-        if "RAG" in self.agent_path:
-            await self._prepare_rag_environment()
+        # 2. Prepare agent-specific environment from config file
+        env = os.environ.copy()
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, 'r') as f:
+                    config = yaml.safe_load(f) or {}
+            except yaml.YAMLError as e:
+                await manager.broadcast(json.dumps({
+                    "type": "log",
+                    "agent": self.agent_name,
+                    "line": f"[ERROR] Failed to parse agents.config.yaml: {e}. Continuing without agent-specific config."
+                }))
+                config = {}
+            
+            agents_config = config.get("agents", {})
+            if not isinstance(agents_config, dict):
+                await manager.broadcast(json.dumps({
+                    "type": "log",
+                    "agent": self.agent_name,
+                    "line": f"[ERROR] 'agents' key in agents.config.yaml is not a dictionary. Skipping."
+                }))
+                agents_config = {}
+
+            agent_config = agents_config.get(self.agent_name, {})
+            if agent_config:
+                await manager.broadcast(json.dumps({
+                    "type": "log", 
+                    "agent": self.agent_name, 
+                    "line": f"Applying agent-specific configuration for {self.agent_name}."
+                }))
+                
+                env_updates = agent_config.get("environment", {})
+                if not isinstance(env_updates, dict):
+                    await manager.broadcast(json.dumps({
+                        "type": "log",
+                        "agent": self.agent_name,
+                        "line": f"[ERROR] 'environment' key for {self.agent_name} in agents.config.yaml is not a dictionary. Skipping."
+                    }))
+                    env_updates = {}
+
+                for key, value in env_updates.items():
+                    if key == "UNSET_ENV_VARS":
+                        if isinstance(value, list):
+                            for var_to_unset in value:
+                                env.pop(var_to_unset, None)
+                        else:
+                            await manager.broadcast(json.dumps({
+                                "type": "log",
+                                "agent": self.agent_name,
+                                "line": f"[ERROR] 'UNSET_ENV_VARS' for {self.agent_name} in agents.config.yaml is not a list. Skipping."
+                            }))
+                    else:
+                        env[str(key)] = os.path.expandvars(str(value))
 
         # 3. Install dependencies (agent and host)
         await manager.broadcast(json.dumps({"type": "status", "agent": self.agent_name, "status": "installing_dependencies"}))
-        env = os.environ.copy()
         env["VIRTUAL_ENV"] = venv_path
         
         # Install agent requirements
