@@ -60,3 +60,41 @@ To address this, we will implement a centralized, host-level configuration syste
 
 -   **Effort:** FEATURE
 -   **Complexity:** Low. The logic is straightforward and contained within the `agent_runner.py` script. It requires adding a new dependency and file parsing, but does not require major architectural changes.
+
+## Revisions from Code Review
+
+Based on feedback from the initial pull request, the following changes are required to address security, robustness, and correctness concerns.
+
+### 1. Avoid Hardcoded Secrets
+
+-   **Problem:** The `agents.config.yaml` file contains sensitive project IDs and corpus paths.
+-   **Action:**
+    -   Rename the existing file to `agents.config.yaml.example` to serve as a template.
+    -   Replace the hardcoded values in the example file with placeholder environment variables (e.g., `GOOGLE_CLOUD_PROJECT: "${GCP_PROJECT_ID}"`).
+    -   Add `agents.config.yaml` to the `.gitignore` file to prevent accidental commits of user-specific configurations.
+
+### 2. Correct `requirements.txt`
+
+-   **Problem:** The `PyYAML` dependency was appended to the same line as `google-adk`, which would cause installation to fail.
+-   **Action:**
+    -   Modify `backend/requirements.txt` to place `PyYAML==6.0.1` on its own line.
+
+### 3. Ensure Correct YAML String Parsing
+
+-   **Problem:** The YAML value `TRUE` is parsed as a boolean (`True`) by PyYAML, which is then converted to the string `"True"`, not `"TRUE"`.
+-   **Action:**
+    -   In `agents.config.yaml.example`, enclose the value in quotes (`"TRUE"`) to ensure it is parsed as a string.
+
+### 4. Add Robust Error Handling
+
+-   **Problem:** A malformed `agents.config.yaml` file will crash the backend during agent startup.
+-   **Action:**
+    -   In `backend/agent_runner.py`, wrap the `yaml.safe_load()` call in a `try...except yaml.YAMLError` block.
+    -   If an error occurs, log a warning message and continue with an empty configuration, preventing a crash.
+
+### 5. Robust Configuration Path
+
+-   **Problem:** The path to `agents.config.yaml` is resolved relative to the current working directory, which can be unreliable.
+-   **Action:**
+    -   In `backend/agent_runner.py`, modify the path construction to be relative to the script's own location, ensuring it can be found regardless of where the application is launched from.
+    -   The path should be: `os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'agents.config.yaml'))`.
