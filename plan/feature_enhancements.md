@@ -2,6 +2,104 @@
 
 This document is a running list of ideas for future enhancements to the Agent Gallery project.
 
+## A2A
+- A2A support
+  - **Effort Assessment: EPIC**
+  - Implementing Agent-to-Agent communication would require a significant architectural change. The current architecture isolates each agent in its own subprocess with no direct communication channels.
+  - Key challenges include:
+    - **Communication Infrastructure:** Requires designing and building a new system for inter-agent message passing, either through the central backend acting as a broker or by implementing a service discovery mechanism for direct agent-to-agent HTTP calls.
+    - **Core Agent Logic (`google-adk`):** The `google-adk` `Runner` would need fundamental changes to handle and process incoming events/messages from other agents, not just from the user.
+    - **API and State Management:** The backend's concept of a "turn" would need to evolve to manage multi-agent conversational state.
+    - **Frontend UI:** The UI would require substantial work to visualize and manage A2A interactions (e.g., grouping agents that are communicating).
+  - This epic would need to be broken down into smaller, more manageable features.
+
+
+## FEATURES
 - Agent Code View: click a code icon in an agent card to see the code in a popup or viewer pane
-- A2A UI support: group together agents that are communicating via A2A
-- Cloud Run deployment of Agent Gallery
+  - **Effort Assessment: FEATURE**
+  - This is a well-defined feature with a clear implementation path.
+  - **Backend:** Requires a new API endpoint (e.g., `/agents/{agent_id}/code`) that reads and returns the content of the agent's primary Python file. The backend already has logic for locating agent files.
+  - **Frontend:** Requires adding a new icon/button to the `AgentListItem` component, a new function to fetch the code from the backend, and a new modal component to display the code. No major state management or architectural changes are needed.
+- Container Mode
+  - **Effort Assessment: EPIC**
+  - This represents a major architectural addition, creating a parallel agent execution engine using Docker.
+  - **Key challenges include:
+    - **New `ContainerAgentRunner`:** A new runner class would be needed to manage the entire Docker lifecycle: finding/generating Dockerfiles, running `docker build`, `docker run`, and `docker stop`.
+    - **Backend Refactoring:** The core backend logic would need significant changes to support both the existing `AgentRunner` and the new `ContainerAgentRunner`, allowing the user to switch between them.
+    - **Event Streaming:** The current event streaming mechanism relies on an OS-level pipe, which will not work for containerized agents. A new, non-trivial solution (e.g., a dedicated WebSocket connection from the agent back to the backend) would need to be designed and implemented to stream structured events.
+    - **New System Dependency:** This feature introduces a hard dependency on a running Docker daemon, which adds complexity to the setup and user experience.
+- Multi-session support
+  - **Effort Assessment: EPIC**
+  - While the frontend has a surprisingly robust session management service already built, the backend is completely stateless, making this a backend-heavy epic.
+  - **Key challenges include:**
+    - **Backend Rearchitecture:** The interaction between the main backend and the agent subprocesses must be fundamentally changed. The current stateless `run_turn` endpoint needs to be replaced with a stateful model.
+    - **ADK Integration:** The `agent_host.py` script must be rewritten to use the stateful `google.adk.runners.Runner` and `Session` objects, passing `session_id` and conversation history with each turn. This is the most critical and complex part of the work.
+    - **API Changes:** The `/run_turn` endpoint in `main.py` and the `AgentRunner` class need to be updated to accept and pass `session_id` and history.
+    - **Persistence:** To make sessions useful, a persistence layer (e.g., a simple file-based or DB store) would be needed to save, load, and delete session history.
+    - **Frontend UI:** A UI for creating, selecting, saving, and deleting sessions for an agent would need to be built. The underlying frontend services for this are already largely in place.
+- Artifact service support
+  - **Effort Assessment: FEATURE**
+  - This feature is about integrating the ADK's built-in Artifact Service, not building one from scratch. The work is primarily plumbing and integration.
+  - **Key tasks include:**
+    - **ADK Integration:** The `agent_host.py` script must be updated to instantiate an `ArtifactService` (e.g., `InMemoryArtifactService`) and pass it to the ADK `Runner`.
+    - **Agent-level API:** The agent's internal web server (in `agent_host.py`) needs a new endpoint to retrieve artifacts by name from the `ArtifactService`.
+    - **Backend Proxy:** The main backend (`main.py`) needs a new endpoint that proxies artifact download requests from the frontend to the correct agent subprocess.
+    - **Frontend:** The chat UI needs to be updated to recognize `artifact://` URIs in agent responses and render them as clickable download links pointing to the new backend proxy endpoint.
+- Evaluation support
+  - **Effort Assessment: EPIC**
+  - This feature is about building a web UI and backend system to manage the ADK's command-line evaluation tool (`adk evaluate`). While the core evaluation logic is provided by the ADK, the web integration is a large project.
+  - **Key challenges include:**
+    - **Backend Subprocess Management:** A new backend system is needed to manage the lifecycle of `adk evaluate` runs as one-off, long-running tasks.
+    - **File Management:** The backend must handle the storage and management of evaluation dataset files (e.g., YAML/JSON) uploaded by the user.
+    - **API and Data Handling:** A new set of API endpoints is required to manage datasets, trigger evaluation runs, and retrieve the resulting reports. The backend will also need to parse the report files generated by the ADK tool.
+    - **New Frontend UI:** This requires a completely new, dedicated section in the UI for managing evaluation datasets and viewing the complex, structured data from evaluation reports.
+- Backend logging levels
+  - **Effort Assessment: FEATURE**
+  - This is a standard good-practice feature for any backend application.
+  - **Implementation:** Involves replacing all `print()` statements in the backend Python code with the standard `logging` module. The logging level would be made configurable via an environment variable or a command-line argument to the Uvicorn server. This is a straightforward task with no architectural impact.
+- Event Viewer
+  - **Effort Assessment: FEATURE**
+  - This feature is about correctly capturing and displaying the rich, structured event stream from the ADK. The project already has a minimal `EventStreamingPlugin` that forwards a subset of events, so the core plumbing exists.
+  - **Key tasks include:**
+    - **Backend Plugin Expansion:** The existing `backend/event_streaming_plugin.py` needs to be expanded to implement a comprehensive set of `BasePlugin` hooks (e.g., `on_start_turn`, `on_end_llm`, `on_error`) to capture the full agent lifecycle, not just tool calls.
+    - **Frontend State Management:** The `useManagementSocket` hook must be modified to persistently store the full stream of incoming events for the selected agent, rather than clearing them after processing.
+    - **New Frontend Component:** A new `EventViewer.tsx` component needs to be built. This component should be designed to render the hierarchical event data in a user-friendly way, such as a collapsible tree view, and would likely be added as a new tab in the `InfoPane`.
+- Agent Deployment Support
+  - **Effort Assessment: EPIC**
+  - This feature expands the gallery from a local development tool to a cloud deployment portal.
+  - **Key challenges include:**
+    - **Cloud Authentication:** The backend needs to be configured to use user-provided Google Cloud credentials (e.g., Application Default Credentials).
+    - **Packaging & Containerization:** A new backend process is required to package agent source code into a container image, likely requiring a Docker daemon to be available. This involves finding or generating a Dockerfile and pushing the built image to a container registry.
+    - **Asynchronous Deployment Engine:** The backend needs a new service to manage the long-running deployment process (e.g., calling `gcloud run deploy`). This must be asynchronous to avoid blocking the server.
+    - **Real-time Feedback:** The deployment engine must stream logs from the packaging and deployment process back to the frontend over the WebSocket.
+    - **New Frontend UI:** A substantial new UI is needed for configuring deployment parameters (Project ID, region, etc.), triggering the deployment, and viewing the live logs and final status.
+    - Cloud Run
+    - Agent Engine
+- Connect to running agent(?)
+  - **Effort Assessment: FEATURE**
+  - This feature would allow the gallery to act as a client for agents that are running externally (i.e., not started by the gallery).
+  - **Implementation:**
+    - **Backend:** Requires a new API endpoint to register an external agent by its URL. The `/run_turn` logic would need to be updated to proxy requests to this URL for external agents, instead of using the local `AgentRunner`.
+    - **Frontend:** Requires a new UI form for users to submit the name and URL of an external agent. The agent list UI would need to be adapted to display these "unmanaged" agents, disabling features that don't apply (like start/stop, logs, and event viewing).
+- Live agent support
+  - **Effort Assessment: EPIC**
+  - This feature involves integrating real-time, streaming voice/video agents (Gemini Live Agents), which operate on a completely different paradigm than the current text-based, turn-based ADK agents.
+  - **Integration Strategy:** This would be a parallel, side-by-side integration. It would not replace the existing agent runner but would add a new, distinct "mode" to the application.
+  - **Key challenges include:**
+    - **New Real-time Backend:** A new backend service is required to manage the persistent, low-latency, bi-directional stream with the Gemini Live API. This is entirely separate from the existing FastAPI request-response logic.
+    - **New Frontend UI:** A completely new `LiveChatInterface.tsx` component is needed to handle microphone input, real-time audio playback, and potentially video streams. The existing text-based chat UI cannot be reused.
+    - **Browser Media APIs:** The frontend will need to use low-level browser APIs (`getUserMedia`, etc.) to capture and process audio/video.
+    - **New Communication Protocol:** The application's communication layer would need to be enhanced to support real-time streaming protocols (e.g., WebRTC or a specialized WebSocket setup) alongside the existing notification-based WebSocket.
+
+## TASKS
+- Subagent support/testing (tools work, need to try subagent transfers)
+- Test all ADK Sample Agents
+- Agent Gallery Cloud Run deployment
+    - Feature: instance-per agent option
+
+
+## AGENTS
+- ADK Samples
+- A2A Samples (to be added)
+- Implementation of https://cloud.google.com/architecture/multiagent-ai-system
+- Agentic Design Patterns: https://docs.google.com/document/d/1rsaK53T3Lg5KoGwvf8ukOUvbELRtH-V0LnOIFDxBryE/edit?tab=t.0#heading=h.pxcur8v2qagu
