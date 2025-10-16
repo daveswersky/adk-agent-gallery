@@ -88,6 +88,11 @@ const AgentListItem: React.FC<{
 export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agents, selectedAgent, isConnected, onStart, onStop, onStopAll, onSelectAgent }) => {
   const [searchTerm, setSearchTerm] = React.useState('');
 
+  const handleStartAgent = React.useCallback((id: string) => {
+    onStart(id);
+    setSearchTerm('');
+  }, [onStart, setSearchTerm]);
+
   const sortedAgents = [...agents].sort((a, b) => {
     const statusOrder = {
       [AgentStatus.RUNNING]: 1,
@@ -147,10 +152,7 @@ export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agents, selectedAgen
               <div>
                 <AgentListItem
                   agent={agent}
-                  onStart={(id) => {
-                    onStart(id);
-                    setSearchTerm('');
-                  }}
+                  onStart={handleStartAgent}
                   onStop={onStop}
                   onSelect={onSelectAgent}
                   isActive={selectedAgent?.id === agent.id}
