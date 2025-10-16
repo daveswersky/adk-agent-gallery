@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import type { Agent } from './types';
+import type { Agent, AgentCode } from './types';
 import { AgentStatus } from './types';
 import { useManagementSocket } from './hooks/useManagementSocket';
 import { AgentSidebar } from './components/AgentSidebar';
 import { ChatInterface } from './components/ChatInterface';
 import { InfoPane } from './components/InfoPane';
+import { getAgentCode } from './services/agentService';
+import CodeViewerModal from './components/CodeViewerModal';
 
 // Constants for resizer constraints
 const MIN_SIDEBAR_WIDTH = 280; // px
@@ -13,6 +15,8 @@ const MIN_INFO_PANE_HEIGHT = 120; // px
 
 const App: React.FC = () => {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+  const [agentCode, setAgentCode] = useState<AgentCode | null>(null);
+  const [isCodeViewerOpen, setIsCodeViewerOpen] = useState(false);
 
   const handleAgentStarted = useCallback((agent: Agent) => {
     setSelectedAgent(agent);
@@ -43,6 +47,17 @@ const App: React.FC = () => {
   const handleSelectAgent = (agent: Agent) => {
     if (agent.status === AgentStatus.RUNNING) {
       setSelectedAgent(agent);
+    }
+  };
+
+  const handleViewCode = async (agentId: string) => {
+    try {
+      const code = await getAgentCode(agentId);
+      setAgentCode(code);
+      setIsCodeViewerOpen(true);
+    } catch (error) {
+      console.error("Failed to fetch agent code:", error);
+      // Optionally, show an error to the user
     }
   };
   
@@ -104,6 +119,7 @@ const App: React.FC = () => {
           onStop={stopAgent}
           onStopAll={stopAllAgents}
           onSelectAgent={handleSelectAgent}
+          onViewCode={handleViewCode}
         />
       </div>
 
@@ -136,6 +152,12 @@ const App: React.FC = () => {
           <InfoPane logs={logs} agents={agents} selectedAgent={selectedAgent} />
         </div>
       </main>
+      {isCodeViewerOpen && (
+        <CodeViewerModal
+          agentCode={agentCode}
+          onClose={() => setIsCodeViewerOpen(false)}
+        />
+      )}
     </div>
   );
 };

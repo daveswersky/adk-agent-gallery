@@ -1,7 +1,7 @@
 import React from 'react';
 import { Flipper, Flipped } from 'react-flip-toolkit';
 import { Agent, AgentStatus } from '../types';
-import { PlayIcon, StopIcon, SpinnerIcon, ClearIcon } from './icons';
+import { PlayIcon, StopIcon, SpinnerIcon, ClearIcon, CodeBracketIcon } from './icons';
 
 interface AgentSidebarProps {
   agents: Agent[];
@@ -11,6 +11,7 @@ interface AgentSidebarProps {
   onStop: (id: string) => void;
   onStopAll: () => void;
   onSelectAgent: (agent: Agent) => void;
+  onViewCode: (id: string) => void;
 }
 
 const StatusBadge: React.FC<{ status: AgentStatus }> = ({ status }) => {
@@ -43,8 +44,9 @@ const AgentListItem: React.FC<{
   onStart: (id: string) => void;
   onStop: (id: string) => void;
   onSelect: (agent: Agent) => void;
+  onViewCode: (id: string) => void;
   isActive: boolean;
-}> = ({ agent, onStart, onStop, onSelect, isActive }) => {
+}> = ({ agent, onStart, onStop, onSelect, onViewCode, isActive }) => {
   const isRunning = agent.status === AgentStatus.RUNNING;
 
   return (
@@ -61,6 +63,13 @@ const AgentListItem: React.FC<{
       </div>
       <p className="text-xs text-adk-text-secondary mb-2 text-ellipsis overflow-hidden">{agent.description}</p>
       <div className="flex items-center justify-end space-x-2 mt-auto">
+        <button
+          onClick={(e) => { e.stopPropagation(); onViewCode(agent.id); }}
+          className="p-2 text-sm font-medium rounded-md bg-adk-dark-3 hover:bg-adk-accent hover:text-white flex items-center transition-colors"
+          title="View Code"
+        >
+          <CodeBracketIcon className="w-5 h-5" />
+        </button>
         <button
           data-testid={`start-agent-${agent.id}`}
           onClick={(e) => { e.stopPropagation(); onStart(agent.id); }}
@@ -85,7 +94,7 @@ const AgentListItem: React.FC<{
 };
 
 
-export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agents, selectedAgent, isConnected, onStart, onStop, onStopAll, onSelectAgent }) => {
+export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agents, selectedAgent, isConnected, onStart, onStop, onStopAll, onSelectAgent, onViewCode }) => {
   const [searchTerm, setSearchTerm] = React.useState('');
 
   const handleStartAgent = React.useCallback((id: string) => {
@@ -155,6 +164,7 @@ export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agents, selectedAgen
                   onStart={handleStartAgent}
                   onStop={onStop}
                   onSelect={onSelectAgent}
+                  onViewCode={onViewCode}
                   isActive={selectedAgent?.id === agent.id}
                 />
               </div>
