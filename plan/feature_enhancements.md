@@ -90,34 +90,10 @@ This document is a running list of ideas for future enhancements to the Agent Ga
     - **New Frontend UI:** A completely new `LiveChatInterface.tsx` component is needed to handle microphone input, real-time audio playback, and potentially video streams. The existing text-based chat UI cannot be reused.
     - **Browser Media APIs:** The frontend will need to use low-level browser APIs (`getUserMedia`, etc.) to capture and process audio/video.
     - **New Communication Protocol:** The application's communication layer would need to be enhanced to support real-time streaming protocols (e.g., WebRTC or a specialized WebSocket setup) alongside the existing notification-based WebSocket.
-- [Agent-specific Configuration](./feature/Agent-Specific-Config.md)
+- ~~[Agent-specific Configuration](./feature/Agent-Specific-Config.md)~~
+  - **Status: Implemented & Merged**
   - **Effort Assessment: FEATURE**
-  - This feature addresses the need for a scalable and maintainable way to provide unique configurations for different agents, replacing the current hardcoded shim for the RAG agent. The configuration is a host-level concern and should not be stored within the agent directories themselves.
-  - **Implementation:**
-    - A new, centralized configuration file, `agents.config.yaml`, will be created in the project root.
-    - The `backend/agent_runner.py` script will be modified to read this file when an agent is started.
-    - If a configuration is found for the specific agent, the `AgentRunner` will use it to prepare the subprocess environment. This includes setting variables like `GOOGLE_GENAI_USE_VERTEXAI`, `GOOGLE_CLOUD_PROJECT`, and `RAG_CORPUS`, and unsetting API keys as needed.
-    - This new system will completely replace the temporary `_prepare_rag_environment` method.
-  - **Example `agents.config.yaml`:**
-    ```yaml
-    # Centralized configuration for agents hosted by the gallery.
-    agents:
-      RAG:
-        description: "Uses Vertex AI and requires specific GCP project and location."
-        environment:
-          # Use Vertex AI instead of API Keys
-          GOOGLE_GENAI_USE_VERTEXAI: TRUE
-          # Project and Location for Vertex AI
-          GOOGLE_CLOUD_PROJECT: "primaryproject-305315"
-          GOOGLE_CLOUD_LOCATION: "us-central1"
-          # Agent-specific values
-          RAG_CORPUS: "projects/primaryproject-305315/locations/us-central1/ragCorpora/5685794529555251200"
-
-      some-other-agent:
-        environment:
-          SOME_CUSTOM_VARIABLE: "value"
-
-    ```
+  - This feature addresses the need for a scalable and maintainable way to provide unique configurations for different agents, replacing the current hardcoded shim for the RAG agent. The configuration is a host-level concern and should not be stored within the agent directories themselves. A centralized `agents.config.yaml` (gitignored) with an accompanying `agents.config.yaml.example` template now manages all agent-specific environment variables.
 
 ## TASKS
 - Subagent support/testing (tools work, need to try subagent transfers)
@@ -138,6 +114,8 @@ This document is a running list of ideas for future enhancements to the Agent Ga
 - Add "clear" button to agent filter. Circled X in right side of filter field
 - When starting an agent discovered by the filter, clear the filter on start
 - subprocess check when processes crash
+- Warn on unexpanded variables in `agents.config.yaml`. If a value contains a `$` after expansion, it likely means a host environment variable is missing. (may fix)
+- Model Context Protocol example
 
 ## ASSISTED DEV IDEAS
 - CLI Extension: /handoff
