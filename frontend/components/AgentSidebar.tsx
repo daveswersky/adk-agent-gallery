@@ -1,7 +1,6 @@
 import React from 'react';
 import { Agent, AgentStatus } from '../types';
 import { PlayIcon, StopIcon, SpinnerIcon, ClearIcon } from './icons';
-import { AgentListItem } from './AgentListItem';
 import TreeView from './TreeView';
 
 interface AgentSidebarProps {
@@ -40,7 +39,7 @@ export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agents, selectedAgen
   const anyAgentRunning = agents.some(agent => agent.status === AgentStatus.RUNNING);
 
   return (
-    <aside className="w-full h-full bg-adk-dark-2 flex flex-col border-r border-adk-dark-3">
+    <aside className="w-full h-full bg-adk--2 flex flex-col border-r border-adk-dark-3">
       <header className="p-4 border-b border-adk-dark-3 flex-shrink-0">
         <h1 className="text-2xl font-bold text-white">ADK Agent Gallery</h1>
         <div className="flex items-center space-x-2 mt-1">

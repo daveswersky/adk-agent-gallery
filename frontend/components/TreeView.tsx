@@ -1,6 +1,31 @@
 import React from 'react';
-import { Agent } from '../types';
-import { AgentListItem } from './AgentListItem';
+import { Agent, AgentStatus } from '../types';
+import { PlayIcon, StopIcon, SpinnerIcon } from './icons';
+
+const StatusBadge: React.FC<{ status: AgentStatus }> = ({ status }) => {
+  const baseClasses = "px-2 py-1 text-xs font-semibold rounded-full inline-flex items-center";
+  let specificClasses = "";
+  let text = status;
+
+  switch (status) {
+    case AgentStatus.RUNNING:
+      specificClasses = "bg-status-running/20 text-status-running";
+      break;
+    case AgentStatus.STOPPED:
+      specificClasses = "bg-status-stopped/20 text-status-stopped";
+      break;
+    case AgentStatus.STARTING:
+    case AgentStatus.STOPPING:
+      specificClasses = "bg-status-starting/20 text-status-starting";
+      text = status;
+      break;
+    case AgentStatus.ERROR:
+      specificClasses = "bg-red-800/50 text-red-400";
+      break;
+  }
+
+  return <span className={`${baseClasses} ${specificClasses}`}>{text}</span>;
+};
 
 interface TreeNode {
   name: string;
@@ -19,52 +44,52 @@ interface TreeViewProps {
 
 const buildTree = (agents: Agent[]): TreeNode[] => {
   const root: TreeNode = { name: 'root', path: '', children: [] };
+  const nodes: { [path: string]: TreeNode } = { '': root };
 
-  for (const agent of agents) {
-    // To keep the leaf node name the same as the agent card, 
-    // we'll use the full agent name for the leaf, and parts for dirs.
-    const pathParts = agent.name.split('/');
-    let currentNode = root;
+  const sortedAgents = [...agents].sort((a, b) => a.name.localeCompare(b.name));
 
+  for (const agent of sortedAgents) {
+    let agentPath = agent.name;
+    if (agentPath.startsWith('agents/')) {
+      agentPath = agentPath.substring('agents/'.length);
+    }
+    
+    const pathParts = agentPath.split('/');
     for (let i = 0; i < pathParts.length; i++) {
       const part = pathParts[i];
       const currentPath = pathParts.slice(0, i + 1).join('/');
+      const parentPath = pathParts.slice(0, i).join('/');
       const isLeaf = i === pathParts.length - 1;
 
-      let childNode = currentNode.children?.find((child) => child.name === part);
+      if (!nodes[currentPath]) {
+        const newNode: TreeNode = {
+          name: part,
+          path: currentPath,
+        };
 
-      if (!childNode) {
-        childNode = { name: part, path: currentPath };
-        if (!isLeaf) {
-          childNode.children = [];
+        if (isLeaf) {
+          newNode.agent = agent; // Store the original agent object
         } else {
-          childNode.agent = agent;
+          newNode.children = [];
         }
-        currentNode.children?.push(childNode);
-        // Keep the list sorted
-        currentNode.children?.sort((a, b) => {
-          // Directories first
-          if (a.children && !b.children) return -1;
-          if (!a.children && b.children) return 1;
-          // Then sort by name
-          return a.name.localeCompare(b.name);
-        });
+
+        const parentNode = nodes[parentPath];
+        parentNode.children?.push(newNode);
+        nodes[currentPath] = newNode;
       }
-      currentNode = childNode;
     }
   }
   return root.children || [];
 };
 
-const TreeNodeComponent: React.FC<{ 
-  node: TreeNode, 
+const TreeNodeComponent: React.FC<{
+  node: TreeNode,
   selectedAgent: Agent | null,
   onStart: (id: string) => void,
   onStop: (id: string) => void,
-  onSelectAgent: (agent: Agent) => void 
+  onSelectAgent: (agent: Agent) => void
 }> = ({ node, selectedAgent, onStart, onStop, onSelectAgent }) => {
-  const [isOpen, setIsOpen] = React.useState(true); // Default to open
-
+  const [isOpen, setIsOpen] = React.useState(true);
   const isFolder = !!node.children;
 
   const handleToggle = () => {
@@ -76,18 +101,18 @@ const TreeNodeComponent: React.FC<{
       <div className="ml-2">
         <div onClick={handleToggle} className="cursor-pointer flex items-center py-1">
           <span className="w-6 text-lg">{isOpen ? '📂' : '📁'}</span>
-          <span className="font-semibold">{node.name}</span>
+          <span className="font-semibold text-adk-text">{node.name}</span>
         </div>
         {isOpen && (
           <div className="pl-4 border-l border-adk-dark-3">
             {node.children.map((child) => (
-              <TreeNodeComponent 
-                key={child.path} 
-                node={child} 
+              <TreeNodeComponent
+                key={child.path}
+                node={child}
                 selectedAgent={selectedAgent}
                 onStart={onStart}
                 onStop={onStop}
-                onSelectAgent={onSelectAgent} 
+                onSelectAgent={onSelectAgent}
               />
             ))}
           </div>
@@ -96,19 +121,38 @@ const TreeNodeComponent: React.FC<{
     );
   }
 
-  // It's a leaf node, so it must have an agent.
-  if (!node.agent) return null;
+  const agent = node.agent;
+  if (!agent) return null;
+
+  const isRunning = agent.status === AgentStatus.RUNNING;
+  const isActive = selectedAgent?.id === agent.id;
 
   return (
-    <div className="my-2">
-      <AgentListItem
-        agent={node.agent}
-        displayName={node.name}
-        onStart={onStart}
-        onStop={onStop}
-        onSelect={onSelectAgent}
-        isActive={selectedAgent?.id === node.agent.id}
-      />
+    <div
+      className={`ml-8 flex items-center justify-between p-2 rounded-md transition-colors ${isActive ? 'bg-adk-accent/20' : ''} ${isRunning ? 'cursor-pointer hover:bg-adk-dark-3' : ''}`}
+      onClick={() => isRunning && onSelectAgent(agent)}
+    >
+      <div className="flex items-center">
+        <span className="w-6 text-lg">🤖</span>
+        <span className="text-adk-text">{node.name}</span>
+      </div>
+      <div className="flex items-center space-x-2">
+        <StatusBadge status={agent.status} />
+        <button
+          onClick={(e) => { e.stopPropagation(); onStart(agent.id); }}
+          disabled={agent.status !== AgentStatus.STOPPED}
+          className="p-1 text-sm font-medium rounded-md bg-adk-dark-3 hover:bg-adk-accent hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {agent.status === AgentStatus.STARTING ? <SpinnerIcon className="animate-spin w-4 h-4" /> : <PlayIcon className="w-4 h-4" />}
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onStop(agent.id); }}
+          disabled={!isRunning}
+          className="p-1 text-sm font-medium rounded-md bg-adk-dark-3 hover:bg-status-stopped/50 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {agent.status === AgentStatus.STOPPING ? <SpinnerIcon className="animate-spin w-4 h-4" /> : <StopIcon className="w-4 h-4" />}
+        </button>
+      </div>
     </div>
   );
 };
@@ -117,15 +161,15 @@ const TreeView: React.FC<TreeViewProps> = ({ agents, selectedAgent, onStart, onS
   const tree = buildTree(agents);
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1">
       {tree.map((node) => (
-        <TreeNodeComponent 
-          key={node.path} 
-          node={node} 
+        <TreeNodeComponent
+          key={node.path}
+          node={node}
           selectedAgent={selectedAgent}
           onStart={onStart}
           onStop={onStop}
-          onSelectAgent={onSelectAgent} 
+          onSelectAgent={onSelectAgent}
         />
       ))}
     </div>

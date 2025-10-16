@@ -8,6 +8,17 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 5173,
         host: '0.0.0.0',
+        fs: {
+          strict: false,
+          cachedChecks: false,
+        },
+        // Aggressively disable caching
+        middleware: (req, res, next) => {
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+          res.setHeader('Pragma', 'no-cache');
+          res.setHeader('Expires', '0');
+          next();
+        }
       },
       plugins: [react()],
       define: {
