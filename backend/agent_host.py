@@ -68,12 +68,17 @@ args, _ = parser.parse_known_args()
 # --- Environment Loading ---
 
 # The agent_host is always run from within the agent's directory.
-# We load the .env file from the current working directory.
-# For the RAG agent, a custom .env is created by agent_runner.py.
-# For other agents, this will load the project's root .env if it's
-# copied or linked, but will not fail if it's absent.
-dotenv_path = os.path.abspath(os.path.join(os.getcwd(), '.env'))
-load_env_file(dotenv_path, verbose=args.verbose)
+# We first try to load a local .env file for agent-specific settings.
+# If that doesn't provide an API key, we fall back to the project's root .env file.
+local_dotenv_path = os.path.abspath(os.path.join(os.getcwd(), '.env'))
+load_env_file(local_dotenv_path, verbose=args.verbose)
+
+# Fallback to root .env if no API key is loaded from the local file.
+if "GOOGLE_API_KEY" not in os.environ and "GEMINI_API_KEY" not in os.environ:
+    if args.verbose:
+        print("DEBUG: No local API key found. Falling back to root .env file.", file=sys.stderr, flush=True)
+    root_dotenv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env'))
+    load_env_file(root_dotenv_path, verbose=args.verbose)
 
 google_api_key = os.environ.get("GOOGLE_API_KEY")
 gemini_api_key = os.environ.get("GEMINI_API_KEY")
