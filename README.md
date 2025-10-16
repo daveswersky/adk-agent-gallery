@@ -1,6 +1,6 @@
 # Agent Gallery
 
-This project is a web-based "Agent Gallery" that provides a user interface for managing and interacting with multiple agents built with the Google Agent Development Kit (ADK). It allows developers to run, test, and debug agents in a realistic, isolated environment without needing to modify the agent's source code.
+Agent Gallery provides a user interface for managing and interacting with multiple agents built with the Google Agent Development Kit (ADK). It allows developers to run, test, and debug agents in a realistic, isolated environment without needing to modify the agent's source code.
 
 This application serves as a powerful alternative to the standard `adk web` command, offering several key advantages:
 
@@ -13,7 +13,7 @@ This application serves as a powerful alternative to the standard `adk web` comm
 
 ## Architecture
 
-The application follows a client-server model with a React frontend and a Python FastAPI backend. The new architecture is designed for stability and introspection, running each agent in an isolated subprocess.
+The application follows a client-server model with a React frontend and a Python FastAPI backend. Agents are run in isolated subprocesses. The current architecture does not use containers, to support development scenarios where a container platform is not available. Future enhancements will include containerization and deployment support.
 
 ### Frontend
 
@@ -42,7 +42,7 @@ The backend is a Python application built with **FastAPI** that manages the agen
     npm install
     npm run dev
     ```
-3.  Open a web browser to the URL provided by Vite (usually `http://localhost:5173`).
+3.  Open a web browser to the URL provided by Vite (usually `http://localhost:3000`).
 
 ## Roadmap
 
