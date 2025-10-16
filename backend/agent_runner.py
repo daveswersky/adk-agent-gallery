@@ -124,7 +124,16 @@ class AgentRunner:
                 }))
                 config = {}
             
-            agent_config = config.get("agents", {}).get(self.agent_name, {})
+            agents_config = config.get("agents", {})
+            if not isinstance(agents_config, dict):
+                await manager.broadcast(json.dumps({
+                    "type": "log",
+                    "agent": self.agent_name,
+                    "line": f"[ERROR] 'agents' key in agents.config.yaml is not a dictionary. Skipping."
+                }))
+                agents_config = {}
+
+            agent_config = agents_config.get(self.agent_name, {})
             if agent_config:
                 await manager.broadcast(json.dumps({
                     "type": "log", 
@@ -133,10 +142,25 @@ class AgentRunner:
                 }))
                 
                 env_updates = agent_config.get("environment", {})
+                if not isinstance(env_updates, dict):
+                    await manager.broadcast(json.dumps({
+                        "type": "log",
+                        "agent": self.agent_name,
+                        "line": f"[ERROR] 'environment' key for {self.agent_name} in agents.config.yaml is not a dictionary. Skipping."
+                    }))
+                    env_updates = {}
+
                 for key, value in env_updates.items():
                     if key == "UNSET_ENV_VARS":
-                        for var_to_unset in value:
-                            env.pop(var_to_unset, None)
+                        if isinstance(value, list):
+                            for var_to_unset in value:
+                                env.pop(var_to_unset, None)
+                        else:
+                            await manager.broadcast(json.dumps({
+                                "type": "log",
+                                "agent": self.agent_name,
+                                "line": f"[ERROR] 'UNSET_ENV_VARS' for {self.agent_name} in agents.config.yaml is not a list. Skipping."
+                            }))
                     else:
                         env[str(key)] = os.path.expandvars(str(value))
 
