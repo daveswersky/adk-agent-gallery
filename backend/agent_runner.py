@@ -82,7 +82,7 @@ class AgentRunner:
         uv_executable = os.path.join(venv_path, "bin", "uv")
         requirements_path = os.path.join(self.agent_path, "requirements.txt")
         host_requirements_path = os.path.abspath("backend/agent_host_requirements.txt")
-        config_path = os.path.abspath("agents.config.yaml")
+        config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'agents.config.yaml'))
 
         # 1. Create virtual environment if it doesn't exist
         if not os.path.exists(venv_path):
@@ -113,8 +113,16 @@ class AgentRunner:
         # 2. Prepare agent-specific environment from config file
         env = os.environ.copy()
         if os.path.exists(config_path):
-            with open(config_path, 'r') as f:
-                config = yaml.safe_load(f)
+            try:
+                with open(config_path, 'r') as f:
+                    config = yaml.safe_load(f) or {}
+            except yaml.YAMLError as e:
+                await manager.broadcast(json.dumps({
+                    "type": "log",
+                    "agent": self.agent_name,
+                    "line": f"[ERROR] Failed to parse agents.config.yaml: {e}. Continuing without agent-specific config."
+                }))
+                config = {}
             
             agent_config = config.get("agents", {}).get(self.agent_name, {})
             if agent_config:

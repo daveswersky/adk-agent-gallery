@@ -1,19 +1,21 @@
 # Centralized configuration for agents hosted by the gallery.
+# Copy this file to 'agents.config.yaml' and fill in your specific values.
+# 'agents.config.yaml' is ignored by git.
 agents:
   RAG:
     description: "Uses Vertex AI and requires specific GCP project and location."
     environment:
       # Use Vertex AI instead of API Keys
-      GOOGLE_GENAI_USE_VERTEXAI: TRUE
+      GOOGLE_GENAI_USE_VERTEXAI: "TRUE"
       # Unset API keys to force Application Default Credentials
       UNSET_ENV_VARS:
         - GOOGLE_API_KEY
         - GEMINI_API_KEY
       # Project and Location for Vertex AI
-      GOOGLE_CLOUD_PROJECT: "primaryproject-305315"
-      GOOGLE_CLOUD_LOCATION: "us-central1"
+      GOOGLE_CLOUD_PROJECT: "${GCP_PROJECT_ID}"
+      GOOGLE_CLOUD_LOCATION: "${GCP_LOCATION}"
       # Agent-specific values
-      RAG_CORPUS: "projects/primaryproject-305315/locations/us-central1/ragCorpora/5685794529555251200"
+      RAG_CORPUS: "${RAG_CORPUS_ID}"
 
   some-other-agent:
     environment:
