@@ -138,7 +138,7 @@ class AgentRunner:
                         for var_to_unset in value:
                             env.pop(var_to_unset, None)
                     else:
-                        env[str(key)] = str(value)
+                        env[str(key)] = os.path.expandvars(str(value))
 
         # 3. Install dependencies (agent and host)
         await manager.broadcast(json.dumps({"type": "status", "agent": self.agent_name, "status": "installing_dependencies"}))
