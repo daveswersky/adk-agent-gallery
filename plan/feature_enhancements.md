@@ -111,8 +111,8 @@ This document is a running list of ideas for future enhancements to the Agent Ga
 
 
 ## BACKLOG
-- Add "clear" button to agent filter. Circled X in right side of filter field
-- When starting an agent discovered by the filter, clear the filter on start
+- ~~Add "clear" button to agent filter. Circled X in right side of filter field~~ (Done)
+- ~~When starting an agent discovered by the filter, clear the filter on start~~ (Done)
 - subprocess check when processes crash
 - Warn on unexpanded variables in `agents.config.yaml`. If a value contains a `$` after expansion, it likely means a host environment variable is missing. (may fix)
 - Model Context Protocol example
