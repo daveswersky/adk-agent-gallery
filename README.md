@@ -33,16 +33,46 @@ The backend is a Python application built with **FastAPI** that manages the agen
 
 ## How to Run
 
-1.  **Start the Backend**:
+### Backend Setup
+
+1.  **Create a Virtual Environment**: From the project root, create a Python virtual environment.
+    ```bash
+    python3 -m venv .venv
+    ```
+2.  **Activate the Environment**:
+    *   On macOS and Linux:
+        ```bash
+        source .venv/bin/activate
+        ```
+    *   On Windows:
+        ```bash
+        .venv\Scripts\activate
+        ```
+3.  **Install Dependencies**:
+    ```bash
+    pip install -r backend/requirements.txt
+    ```
+4.  **Run the Backend Server**:
     ```bash
     uvicorn backend.main:app --reload
     ```
-2.  **Start the Frontend**:
+
+### Frontend Setup
+
+1.  **Navigate to Frontend Directory**: In a separate terminal, from the project root, run:
+    ```bash
+    cd frontend
+    ```
+2.  **Install Dependencies**:
     ```bash
     npm install
+    ```
+3.  **Run the Frontend Dev Server**:
+    ```bash
     npm run dev
     ```
-3.  Open a web browser to the URL provided by Vite (usually `http://localhost:3000`).
+
+After completing these steps, open a web browser to the URL provided by Vite (usually `http://localhost:5173`).
 
 ## Roadmap
 
