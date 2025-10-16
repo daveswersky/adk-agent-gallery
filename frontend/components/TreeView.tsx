@@ -1,6 +1,6 @@
 import React from 'react';
 import { Agent, AgentStatus } from '../types';
-import { PlayIcon, StopIcon, SpinnerIcon } from './icons';
+import { PlayIcon, StopIcon, SpinnerIcon, CodeIcon } from './icons';
 
 const StatusBadge: React.FC<{ status: AgentStatus }> = ({ status }) => {
   const baseClasses = "px-2 py-1 text-xs font-semibold rounded-full inline-flex items-center";
@@ -49,12 +49,7 @@ const buildTree = (agents: Agent[]): TreeNode[] => {
   const sortedAgents = [...agents].sort((a, b) => a.name.localeCompare(b.name));
 
   for (const agent of sortedAgents) {
-    let agentPath = agent.name;
-    if (agentPath.startsWith('agents/')) {
-      agentPath = agentPath.substring('agents/'.length);
-    }
-    
-    const pathParts = agentPath.split('/');
+    const pathParts = agent.name.split('/');
     for (let i = 0; i < pathParts.length; i++) {
       const part = pathParts[i];
       const currentPath = pathParts.slice(0, i + 1).join('/');
@@ -98,10 +93,10 @@ const TreeNodeComponent: React.FC<{
 
   if (isFolder) {
     return (
-      <div className="ml-2">
+      <div>
         <div onClick={handleToggle} className="cursor-pointer flex items-center py-1">
           <span className="w-6 text-lg">{isOpen ? '📂' : '📁'}</span>
-          <span className="font-semibold text-adk-text">{node.name}</span>
+          <span className="font-mono text-sm text-adk-text">{node.name}</span>
         </div>
         {isOpen && (
           <div className="pl-4 border-l border-adk-dark-3">
@@ -125,30 +120,34 @@ const TreeNodeComponent: React.FC<{
   if (!agent) return null;
 
   const isRunning = agent.status === AgentStatus.RUNNING;
+  const isStopped = agent.status === AgentStatus.STOPPED;
   const isActive = selectedAgent?.id === agent.id;
 
   return (
     <div
-      className={`ml-8 flex items-center justify-between p-2 rounded-md transition-colors ${isActive ? 'bg-adk-accent/20' : ''} ${isRunning ? 'cursor-pointer hover:bg-adk-dark-3' : ''}`}
+      className={`flex items-center justify-between p-2 rounded-md transition-colors ${isActive ? 'bg-adk-accent/20' : ''} ${isRunning ? `cursor-pointer hover:bg-adk-dark-3 border border-status-running` : 'border border-transparent'}`}
       onClick={() => isRunning && onSelectAgent(agent)}
     >
       <div className="flex items-center">
-        <span className="w-6 text-lg">🤖</span>
-        <span className="text-adk-text">{node.name}</span>
+        <span className="font-mono text-sm text-adk-text">{node.name}</span>
       </div>
       <div className="flex items-center space-x-2">
-        <StatusBadge status={agent.status} />
+        <button
+            className="p-1 text-sm font-medium rounded-md bg-adk-dark-3 text-adk-text-secondary hover:bg-adk-dark-3/80 transition-colors"
+        >
+            <CodeIcon className="w-4 h-4" />
+        </button>
         <button
           onClick={(e) => { e.stopPropagation(); onStart(agent.id); }}
-          disabled={agent.status !== AgentStatus.STOPPED}
-          className="p-1 text-sm font-medium rounded-md bg-adk-dark-3 hover:bg-adk-accent hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled={!isStopped}
+          className={`p-1 text-sm font-medium rounded-md transition-colors ${isStopped ? 'bg-status-running/20 text-status-running hover:bg-status-running/40' : 'bg-adk-dark-3 text-adk-text-secondary'} disabled:opacity-50 disabled:cursor-not-allowed`}
         >
           {agent.status === AgentStatus.STARTING ? <SpinnerIcon className="animate-spin w-4 h-4" /> : <PlayIcon className="w-4 h-4" />}
         </button>
         <button
           onClick={(e) => { e.stopPropagation(); onStop(agent.id); }}
           disabled={!isRunning}
-          className="p-1 text-sm font-medium rounded-md bg-adk-dark-3 hover:bg-status-stopped/50 disabled:opacity-50 disabled:cursor-not-allowed"
+          className={`p-1 text-sm font-medium rounded-md transition-colors ${isRunning ? 'bg-status-stopped/20 text-status-stopped hover:bg-status-stopped/40' : 'bg-adk-dark-3 text-adk-text-secondary'} disabled:opacity-50 disabled:cursor-not-allowed`}
         >
           {agent.status === AgentStatus.STOPPING ? <SpinnerIcon className="animate-spin w-4 h-4" /> : <StopIcon className="w-4 h-4" />}
         </button>
