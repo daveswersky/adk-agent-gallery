@@ -15,6 +15,8 @@ This document is a running list of ideas for future enhancements to the Agent Ga
 
 
 ## FEATURES
+- [Treeview Agent List](./feature/Treeview-Agent-List.md): Optimize for long lists of agents. Condensed file system treeview-style. 
+  - **Effort Assessment: FEATURE** 
 - [Agent Code View](./feature/Agent-Code-View.md): click a code icon in an agent card to see the code in a popup or viewer pane
   - **Effort Assessment: FEATURE**
   - This is a well-defined feature with a clear implementation path.
