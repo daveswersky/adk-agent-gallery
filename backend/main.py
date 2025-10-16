@@ -110,6 +110,39 @@ async def get_agents():
 
     return agents
 
+@app.get("/agents/{agent_name}/code")
+async def get_agent_code(agent_name: str):
+    """Finds and returns the code for a specified agent."""
+    possible_paths = [
+        os.path.abspath(f"agents/{agent_name}"),
+        os.path.abspath(f"agents/adk-samples/python/agents/{agent_name}")
+    ]
+    agent_path = next((path for path in possible_paths if os.path.exists(path)), None)
+    if not agent_path:
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found.")
+
+    # Normalize the agent name for module lookup (e.g., 'my-agent' -> 'my_agent')
+    module_name = agent_name.replace('-', '_')
+    
+    # Check for nested structure first
+    nested_agent_py_path = os.path.join(agent_path, module_name, "agent.py")
+    flat_agent_py_path = os.path.join(agent_path, "agent.py")
+
+    agent_py_path = None
+    if os.path.exists(nested_agent_py_path):
+        agent_py_path = nested_agent_py_path
+    elif os.path.exists(flat_agent_py_path):
+        agent_py_path = flat_agent_py_path
+    else:
+        raise HTTPException(status_code=404, detail=f"Primary agent file not found for '{agent_name}'.")
+
+    try:
+        with open(agent_py_path, "r") as f:
+            content = f.read()
+        return {"filename": os.path.basename(agent_py_path), "content": content}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading agent file: {e}")
+
 @app.post("/run_turn")
 async def run_turn(request: TurnRequest):
     """Runs a single turn of the agent."""
