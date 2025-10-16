@@ -1,7 +1,7 @@
 import React from 'react';
 import { Flipper, Flipped } from 'react-flip-toolkit';
 import { Agent, AgentStatus } from '../types';
-import { PlayIcon, StopIcon, SpinnerIcon } from './icons';
+import { PlayIcon, StopIcon, SpinnerIcon, ClearIcon } from './icons';
 
 interface AgentSidebarProps {
   agents: Agent[];
@@ -88,6 +88,11 @@ const AgentListItem: React.FC<{
 export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agents, selectedAgent, isConnected, onStart, onStop, onStopAll, onSelectAgent }) => {
   const [searchTerm, setSearchTerm] = React.useState('');
 
+  const handleStartAgent = React.useCallback((id: string) => {
+    onStart(id);
+    setSearchTerm('');
+  }, [onStart, setSearchTerm]);
+
   const sortedAgents = [...agents].sort((a, b) => {
     const statusOrder = {
       [AgentStatus.RUNNING]: 1,
@@ -113,13 +118,23 @@ export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agents, selectedAgen
             <div className={`w-3 h-3 rounded-full animate-pulse ${isConnected ? 'bg-status-running' : 'bg-status-stopped'}`}></div>
             <p className="text-sm text-adk-text-secondary">{isConnected ? 'Connected' : 'Disconnected'}</p>
         </div>
-        <input
-          type="text"
-          placeholder="Search agents..."
-          className="w-full p-2 mt-4 bg-adk-dark border border-adk-dark-3 rounded-md text-white placeholder-adk-text-secondary focus:outline-none focus:ring-2 focus:ring-adk-accent"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
+        <div className="relative mt-4">
+          <input
+            type="text"
+            placeholder="Search agents..."
+            className="w-full p-2 bg-adk-dark border border-adk-dark-3 rounded-md text-white placeholder-adk-text-secondary focus:outline-none focus:ring-2 focus:ring-adk-accent"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
+              className="absolute inset-y-0 right-0 flex items-center pr-3 text-adk-text-secondary hover:text-white"
+            >
+              <ClearIcon className="w-5 h-5" />
+            </button>
+          )}
+        </div>
         <button
           onClick={onStopAll}
           disabled={!anyAgentRunning}
@@ -137,7 +152,7 @@ export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agents, selectedAgen
               <div>
                 <AgentListItem
                   agent={agent}
-                  onStart={onStart}
+                  onStart={handleStartAgent}
                   onStop={onStop}
                   onSelect={onSelectAgent}
                   isActive={selectedAgent?.id === agent.id}

@@ -98,3 +98,10 @@ Based on feedback from the initial pull request, the following changes are requi
 -   **Action:**
     -   In `backend/agent_runner.py`, modify the path construction to be relative to the script's own location, ensuring it can be found regardless of where the application is launched from.
     -   The path should be: `os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'agents.config.yaml'))`.
+
+### 6. Warn on Unexpanded Variables
+
+-   **Problem:** If a user provides a placeholder variable (e.g., `"${VAR}"`) in the config, but the corresponding environment variable is not set on the host, the placeholder will be passed as a literal string to the agent, which is likely not the desired behavior.
+-   **Action:**
+    -   In `backend/agent_runner.py`, after calling `os.path.expandvars()`, check if the resulting string still contains a placeholder pattern (e.g., `"$"`).
+    -   If it does, log a warning to the frontend to alert the user that an environment variable was likely intended but was not found on the host machine.
