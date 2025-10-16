@@ -1,6 +1,6 @@
 import React from 'react';
 import { Agent, AgentStatus } from '../types';
-import { PlayIcon, StopIcon, SpinnerIcon, CodeIcon } from './icons';
+import { PlayIcon, StopIcon, SpinnerIcon, CodeBracketIcon } from './icons';
 
 const StatusBadge: React.FC<{ status: AgentStatus }> = ({ status }) => {
   const baseClasses = "px-2 py-1 text-xs font-semibold rounded-full inline-flex items-center";
@@ -40,6 +40,7 @@ interface TreeViewProps {
   onStart: (id: string) => void;
   onStop: (id: string) => void;
   onSelectAgent: (agent: Agent) => void;
+  onViewCode: (agent: Agent) => void;
 }
 
 const buildTree = (agents: Agent[]): TreeNode[] => {
@@ -82,8 +83,9 @@ const TreeNodeComponent: React.FC<{
   selectedAgent: Agent | null,
   onStart: (id: string) => void,
   onStop: (id: string) => void,
-  onSelectAgent: (agent: Agent) => void
-}> = ({ node, selectedAgent, onStart, onStop, onSelectAgent }) => {
+  onSelectAgent: (agent: Agent) => void;
+  onViewCode: (agent: Agent) => void;
+}> = ({ node, selectedAgent, onStart, onStop, onSelectAgent, onViewCode }) => {
   const [isOpen, setIsOpen] = React.useState(true);
   const isFolder = !!node.children;
 
@@ -108,6 +110,7 @@ const TreeNodeComponent: React.FC<{
                 onStart={onStart}
                 onStop={onStop}
                 onSelectAgent={onSelectAgent}
+                onViewCode={onViewCode}
               />
             ))}
           </div>
@@ -133,9 +136,10 @@ const TreeNodeComponent: React.FC<{
       </div>
       <div className="flex items-center space-x-2">
         <button
+            onClick={(e) => { e.stopPropagation(); onViewCode(agent); }}
             className="p-1 text-sm font-medium rounded-md bg-adk-dark-3 text-adk-text-secondary hover:bg-adk-dark-3/80 transition-colors"
         >
-            <CodeIcon className="w-4 h-4" />
+            <CodeBracketIcon className="w-4 h-4" />
         </button>
         <button
           onClick={(e) => { e.stopPropagation(); onStart(agent.id); }}
@@ -156,7 +160,7 @@ const TreeNodeComponent: React.FC<{
   );
 };
 
-const TreeView: React.FC<TreeViewProps> = ({ agents, selectedAgent, onStart, onStop, onSelectAgent }) => {
+const TreeView: React.FC<TreeViewProps> = ({ agents, selectedAgent, onStart, onStop, onSelectAgent, onViewCode }) => {
   const tree = buildTree(agents);
 
   return (
@@ -169,6 +173,7 @@ const TreeView: React.FC<TreeViewProps> = ({ agents, selectedAgent, onStart, onS
           onStart={onStart}
           onStop={onStop}
           onSelectAgent={onSelectAgent}
+          onViewCode={onViewCode}
         />
       ))}
     </div>

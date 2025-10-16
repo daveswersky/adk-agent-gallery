@@ -50,9 +50,9 @@ const App: React.FC = () => {
     }
   };
 
-  const handleViewCode = async (agentId: string) => {
+  const handleViewCode = async (agent: Agent) => {
     try {
-      const code = await getAgentCode(agentId);
+      const code = await getAgentCode(agent.id);
       setAgentCode(code);
       setIsCodeViewerOpen(true);
     } catch (error) {
