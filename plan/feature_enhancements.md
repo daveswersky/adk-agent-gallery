@@ -100,6 +100,7 @@ This document is a running list of ideas for future enhancements to the Agent Ga
 
 ## AGENTS
 - ADK Samples
-- A2A Samples (to be added)
-- Implementation of https://cloud.google.com/architecture/multiagent-ai-system
-- Agentic Design Patterns: https://docs.google.com/document/d/1rsaK53T3Lg5KoGwvf8ukOUvbELRtH-V0LnOIFDxBryE/edit?tab=t.0#heading=h.pxcur8v2qagu
+- To be added
+    - A2A Samples
+    - Implementation of https://cloud.google.com/architecture/multiagent-ai-system 
+    - Agentic Design Patterns: https://docs.google.com/document/d/1rsaK53T3Lg5KoGwvf8ukOUvbELRtH-V0LnOIFDxBryE/edit?tab=t.0#heading=h.pxcur8v2qagu

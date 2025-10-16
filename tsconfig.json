@@ -1,11 +1,11 @@
 {
   "extends": "./tsconfig.app.json",
   "include": [
-    "*.tsx",
-    "components/**/*.tsx",
-    "hooks/**/*.ts",
-    "services/**/*.ts",
-    "types.ts"
+    "frontend/*.tsx",
+    "frontend/components/**/*.tsx",
+    "frontend/hooks/**/*.ts",
+    "frontend/services/**/*.ts",
+    "frontend/types.ts"
   ],
   "exclude": [
     "node_modules",
