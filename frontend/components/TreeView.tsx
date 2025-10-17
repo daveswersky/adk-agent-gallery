@@ -2,31 +2,6 @@ import React from 'react';
 import { Agent, AgentStatus } from '../types';
 import { PlayIcon, StopIcon, SpinnerIcon, CodeBracketIcon } from './icons';
 
-const StatusBadge: React.FC<{ status: AgentStatus }> = ({ status }) => {
-  const baseClasses = "px-2 py-1 text-xs font-semibold rounded-full inline-flex items-center";
-  let specificClasses = "";
-  let text = status;
-
-  switch (status) {
-    case AgentStatus.RUNNING:
-      specificClasses = "bg-status-running/20 text-status-running";
-      break;
-    case AgentStatus.STOPPED:
-      specificClasses = "bg-status-stopped/20 text-status-stopped";
-      break;
-    case AgentStatus.STARTING:
-    case AgentStatus.STOPPING:
-      specificClasses = "bg-status-starting/20 text-status-starting";
-      text = status;
-      break;
-    case AgentStatus.ERROR:
-      specificClasses = "bg-red-800/50 text-red-400";
-      break;
-  }
-
-  return <span className={`${baseClasses} ${specificClasses}`}>{text}</span>;
-};
-
 interface TreeNode {
   name: string;
   path: string;
@@ -57,21 +32,21 @@ const buildTree = (agents: Agent[]): TreeNode[] => {
       const parentPath = pathParts.slice(0, i).join('/');
       const isLeaf = i === pathParts.length - 1;
 
-      if (!nodes[currentPath]) {
-        const newNode: TreeNode = {
+      let node = nodes[currentPath];
+      if (!node) {
+        node = {
           name: part,
           path: currentPath,
         };
-
-        if (isLeaf) {
-          newNode.agent = agent; // Store the original agent object
-        } else {
-          newNode.children = [];
+        if (!isLeaf) {
+          node.children = [];
         }
+        nodes[parentPath].children?.push(node);
+        nodes[currentPath] = node;
+      }
 
-        const parentNode = nodes[parentPath];
-        parentNode.children?.push(newNode);
-        nodes[currentPath] = newNode;
+      if (isLeaf) {
+        node.agent = agent;
       }
     }
   }
