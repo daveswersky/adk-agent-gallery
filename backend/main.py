@@ -41,28 +41,24 @@ async def shutdown_event():
 async def get_agents():
     """Scans agent directories and returns a list of available agents."""
     agents = []
-    agent_dirs = [
-        os.path.abspath("agents"),
-        os.path.abspath("agents/adk-samples/python/agents")
-    ]
-
-    for agents_dir in agent_dirs:
-        if not os.path.exists(agents_dir):
-            continue
-        for agent_id in os.listdir(agents_dir):
-            if agent_id == 'adk-samples':
+    seen_agents = set()
+    project_root = os.path.abspath(".")
+    
+    # Primary agents directory
+    primary_agents_dir = os.path.abspath("agents")
+    if os.path.exists(primary_agents_dir):
+        for agent_id in os.listdir(primary_agents_dir):
+            if agent_id.startswith('.') or agent_id == '__pycache__' or agent_id == 'adk-samples':
                 continue
-            agent_path = os.path.join(agents_dir, agent_id)
+            agent_path = os.path.join(primary_agents_dir, agent_id)
             if os.path.isdir(agent_path):
-                description = f"The {agent_id} agent."  # Default description
+                relative_path = os.path.relpath(agent_path, project_root)
+                agent_name = relative_path.replace(os.path.sep, '/')
+                if agent_name in seen_agents:
+                    continue
                 
-                module_name = agent_id.replace('-', '_')
-                nested_agent_path = os.path.join(agent_path, module_name)
-                if not os.path.exists(nested_agent_path):
-                    nested_agent_path = os.path.join(agent_path, agent_id)
-
-                agent_py_path = os.path.join(nested_agent_path, "agent.py")
-
+                description = f"The {agent_id} agent."
+                agent_py_path = os.path.join(agent_path, agent_id.replace('-', '_'), "agent.py")
                 if os.path.exists(agent_py_path):
                     try:
                         with open(agent_py_path, "r") as f:
@@ -74,37 +70,68 @@ async def get_agents():
                         print(f"Could not read or parse {agent_py_path}: {e}")
 
                 agents.append({
-                    "id": agent_id,
-                    "name": agent_id,
+                    "id": agent_name,
+                    "name": agent_name,
                     "description": description,
                 })
+                seen_agents.add(agent_name)
+
+    # Special handling for adk-samples
+    adk_samples_dir = os.path.abspath("agents/adk-samples/python/agents")
+    if os.path.exists(adk_samples_dir):
+        for agent_id in os.listdir(adk_samples_dir):
+            if agent_id.startswith('.') or agent_id == '__pycache__':
+                continue
+            agent_path = os.path.join(adk_samples_dir, agent_id)
+            if os.path.isdir(agent_path):
+                relative_path = os.path.relpath(agent_path, project_root)
+                agent_name = relative_path.replace(os.path.sep, '/')
+                if agent_name in seen_agents:
+                    continue
+
+                description = f"The {agent_id} agent."
+                agent_py_path = os.path.join(agent_path, agent_id.replace('-', '_'), "agent.py")
+                if os.path.exists(agent_py_path):
+                    try:
+                        with open(agent_py_path, "r") as f:
+                            content = f.read()
+                            match = re.search(r'description=\(?\s*["\']([^"\']+)["\']', content, re.DOTALL)
+                            if match:
+                                description = match.group(1)
+                    except Exception as e:
+                        print(f"Could not read or parse {agent_py_path}: {e}")
+                
+                agents.append({
+                    "id": agent_name,
+                    "name": agent_name,
+                    "description": description,
+                })
+                seen_agents.add(agent_name)
+
     return agents
 
-@app.get("/agents/{agent_name}/code")
+@app.get("/agents/{agent_name:path}/code")
 async def get_agent_code(agent_name: str):
     """Finds and returns the code for a specified agent."""
-    possible_paths = [
-        os.path.abspath(f"agents/{agent_name}"),
-        os.path.abspath(f"agents/adk-samples/python/agents/{agent_name}")
-    ]
-    agent_path = next((path for path in possible_paths if os.path.exists(path)), None)
-    if not agent_path:
-        raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found.")
+    agent_path = os.path.abspath(agent_name)
+    if not os.path.exists(agent_path):
+        raise HTTPException(status_code=404, detail=f"Agent directory '{agent_path}' not found.")
 
-    # Normalize the agent name for module lookup (e.g., 'my-agent' -> 'my_agent')
-    module_name = agent_name.replace('-', '_')
+    # The agent's primary code file could be in a nested directory named after the
+    # agent, or directly in the root. We need to check both.
+    agent_id = os.path.basename(agent_name)
+    module_name = agent_id.replace('-', '_')
     
-    # Check for nested structure first
-    nested_agent_py_path = os.path.join(agent_path, module_name, "agent.py")
-    flat_agent_py_path = os.path.join(agent_path, "agent.py")
+    possible_files = [
+        os.path.join(agent_path, module_name, "agent.py"),
+        os.path.join(agent_path, "agent.py"),
+        os.path.join(agent_path, "main.py"), # Some agents might use main.py
+    ]
+    
+    agent_py_path = next((path for path in possible_files if os.path.exists(path)), None)
 
-    agent_py_path = None
-    if os.path.exists(nested_agent_py_path):
-        agent_py_path = nested_agent_py_path
-    elif os.path.exists(flat_agent_py_path):
-        agent_py_path = flat_agent_py_path
-    else:
-        raise HTTPException(status_code=404, detail=f"Primary agent file not found for '{agent_name}'.")
+    if not agent_py_path:
+        raise HTTPException(status_code=404, detail=f"Primary agent file not found for '{agent_name}'. Looked in: {possible_files}")
 
     try:
         with open(agent_py_path, "r") as f:
@@ -142,13 +169,10 @@ async def start_agent_process(agent_name: str, port: int):
 
     runner = None
     try:
-        possible_paths = [
-            os.path.abspath(f"agents/{agent_name}"),
-            os.path.abspath(f"agents/adk-samples/python/agents/{agent_name}")
-        ]
-        agent_path = next((path for path in possible_paths if os.path.exists(path)), None)
-        if not agent_path:
-            raise FileNotFoundError(f"Agent '{agent_name}' not found.")
+        # The agent_name is now the full relative path, so we can use it directly.
+        agent_path = os.path.abspath(agent_name)
+        if not os.path.exists(agent_path):
+            raise FileNotFoundError(f"Agent directory '{agent_path}' not found.")
 
         runner = AgentRunner(agent_name, agent_path, port)
         await runner.start()

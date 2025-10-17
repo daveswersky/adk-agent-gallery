@@ -15,6 +15,8 @@ This document is a running list of ideas for future enhancements to the Agent Ga
 
 
 ## FEATURES
+- [Treeview Agent List](./feature/Treeview-Agent-List.md): Optimize for long lists of agents. Condensed file system treeview-style. 
+  - **Effort Assessment: FEATURE** 
 - [Agent Code View](./feature/Agent-Code-View.md): click a code icon in an agent card to see the code in a popup or viewer pane
   - **Effort Assessment: FEATURE**
   - This is a well-defined feature with a clear implementation path.
@@ -111,8 +113,8 @@ This document is a running list of ideas for future enhancements to the Agent Ga
 
 
 ## BACKLOG
-- Add "clear" button to agent filter. Circled X in right side of filter field
-- When starting an agent discovered by the filter, clear the filter on start
+- ~~Add "clear" button to agent filter. Circled X in right side of filter field~~ (Done)
+- ~~When starting an agent discovered by the filter, clear the filter on start~~ (Done)
 - subprocess check when processes crash
 - Warn on unexpanded variables in `agents.config.yaml`. If a value contains a `$` after expansion, it likely means a host environment variable is missing. (may fix)
 - Model Context Protocol example

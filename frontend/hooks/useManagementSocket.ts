@@ -166,7 +166,7 @@ export const useManagementSocket = ({ onAgentStarted }: { onAgentStarted: (agent
 
         sendCommand({
           action: 'start',
-          agent_name: agent.id,
+          agent_name: agent.name,
           port: port,
         });
     }
