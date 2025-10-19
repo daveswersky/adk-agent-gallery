@@ -1,0 +1,3 @@
+OrderNumber,SKU,Quantity,Customer,Revenue
+ORD001,8675,20,CustomerA,10000
+ORD002,309,10,CustomerB,5000
