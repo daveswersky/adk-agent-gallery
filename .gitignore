@@ -30,3 +30,5 @@ __pycache__/
 .venv/
 .venv*/
 agents.config.yaml
+gallery.config.yaml
+desired-agentlist.png
