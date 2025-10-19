@@ -15,6 +15,7 @@ This document is a running list of ideas for future enhancements to the Agent Ga
 
 
 ## FEATURES
+- Markdown view support in ChatInterface. Display markdown-formatted responses from the model.
 - [Agent Code View](./feature/Agent-Code-View.md): click a code icon in an agent card to see the code in a popup or viewer pane
   - **Effort Assessment: FEATURE**
   - This is a well-defined feature with a clear implementation path.
