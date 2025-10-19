@@ -30,11 +30,36 @@ export const useManagementSocket = ({ onAgentStarted }: { onAgentStarted: (agent
 
   useEffect(() => {
     if (agentRoots.length > 0 && agents.length > 0) {
-      const groups: AgentGroup[] = agentRoots.map(root => ({
+      const runningAgents = agents.filter(agent => 
+        agent.status === AgentStatus.RUNNING || 
+        agent.status === AgentStatus.STARTING || 
+        agent.status === AgentStatus.STOPPING
+      );
+
+      const stoppedAgents = agents.filter(agent => 
+        agent.status === AgentStatus.STOPPED || 
+        agent.status === AgentStatus.ERROR
+      );
+
+      const runningGroup: AgentGroup = {
+        name: 'Running Agents',
+        agents: runningAgents,
+      };
+
+      const otherGroups: AgentGroup[] = agentRoots.map(root => ({
         name: root.name,
-        agents: agents.filter(agent => agent.id.startsWith(root.path))
+        agents: stoppedAgents.filter(agent => agent.id.startsWith(root.path))
       }));
-      setAgentGroups(groups);
+
+      const newGroups = [];
+      if (runningGroup.agents.length > 0) {
+        newGroups.push(runningGroup);
+      }
+      newGroups.push(...otherGroups);
+      
+      setAgentGroups(newGroups);
+    } else {
+      setAgentGroups([]);
     }
   }, [agents, agentRoots]);
 

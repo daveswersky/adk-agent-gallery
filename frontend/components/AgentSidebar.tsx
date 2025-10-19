@@ -81,33 +81,26 @@ export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agentGroups, selecte
 
   const anyAgentRunning = allAgents.some(agent => agent.status === AgentStatus.RUNNING);
 
-  const filteredAndSortedAgents = allAgents
-    .filter(agent => agent.name.toLowerCase().includes(searchTerm.toLowerCase()))
-    .sort((a, b) => {
-      const statusOrder = {
-        [AgentStatus.RUNNING]: 1,
-        [AgentStatus.STARTING]: 2,
-        [AgentStatus.STOPPING]: 3,
-        [AgentStatus.STOPPED]: 4,
-        [AgentStatus.ERROR]: 5,
-      };
-      return (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
-    });
+  const sortAgentsByStatus = (agents: Agent[]): Agent[] => {
+    const statusOrder = {
+      [AgentStatus.RUNNING]: 1,
+      [AgentStatus.STARTING]: 2,
+      [AgentStatus.STOPPING]: 3,
+      [AgentStatus.STOPPED]: 4,
+      [AgentStatus.ERROR]: 5,
+    };
+    return [...agents].sort((a, b) => (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99));
+  };
+
+  const filteredAndSortedAgents = sortAgentsByStatus(
+    allAgents.filter(agent => agent.name.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
 
   const displayedGroups = searchTerm
     ? [{ name: 'Search Results', agents: filteredAndSortedAgents }]
     : agentGroups.map(group => ({
         ...group,
-        agents: group.agents.sort((a, b) => {
-          const statusOrder = {
-            [AgentStatus.RUNNING]: 1,
-            [AgentStatus.STARTING]: 2,
-            [AgentStatus.STOPPING]: 3,
-            [AgentStatus.STOPPED]: 4,
-            [AgentStatus.ERROR]: 5,
-          };
-          return (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
-        })
+        agents: sortAgentsByStatus(group.agents)
       }));
 
   return (
