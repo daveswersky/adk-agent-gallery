@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Agent, AgentStatus, ServerMessage, AgentEvent } from '../types';
+import { Agent, AgentStatus, ServerMessage, AgentEvent, AgentGroup } from '../types';
 
 const MANAGEMENT_URL = 'ws://localhost:8000/ws';
 const AGENTS_URL = 'http://localhost:8000/agents';
 
 export const useManagementSocket = ({ onAgentStarted }: { onAgentStarted: (agent: Agent) => void; }) => {
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [agentRoots, setAgentRoots] = useState<{name: string, path: string}[]>([]);
+  const [agentGroups, setAgentGroups] = useState<AgentGroup[]>([]);
   const [logs, setLogs] = useState<string[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [agentEvents, setAgentEvents] = useState<Record<string, AgentEvent[]>>({});
@@ -25,6 +27,41 @@ export const useManagementSocket = ({ onAgentStarted }: { onAgentStarted: (agent
   const clearAgentEvents = useCallback((agentId: string) => {
     setAgentEvents(prev => ({ ...prev, [agentId]: [] }));
   }, []);
+
+  useEffect(() => {
+    if (agentRoots.length > 0 && agents.length > 0) {
+      const runningAgents = agents.filter(agent => 
+        agent.status === AgentStatus.RUNNING || 
+        agent.status === AgentStatus.STARTING || 
+        agent.status === AgentStatus.STOPPING
+      );
+
+      const stoppedAgents = agents.filter(agent => 
+        agent.status === AgentStatus.STOPPED || 
+        agent.status === AgentStatus.ERROR
+      );
+
+      const runningGroup: AgentGroup = {
+        name: 'Running Agents',
+        agents: runningAgents,
+      };
+
+      const otherGroups: AgentGroup[] = agentRoots.map(root => ({
+        name: root.name,
+        agents: stoppedAgents.filter(agent => agent.id.startsWith(root.path))
+      }));
+
+      const newGroups = [];
+      if (runningGroup.agents.length > 0) {
+        newGroups.push(runningGroup);
+      }
+      newGroups.push(...otherGroups);
+      
+      setAgentGroups(newGroups);
+    } else {
+      setAgentGroups([]);
+    }
+  }, [agents, agentRoots]);
 
   useEffect(() => {
     const connect = async () => {
@@ -79,7 +116,9 @@ export const useManagementSocket = ({ onAgentStarted }: { onAgentStarted: (agent
       ws.current.onmessage = (event) => {
         try {
           const message: ServerMessage = JSON.parse(event.data);
-          if (message.type === 'status') {
+          if (message.type === 'config') {
+            setAgentRoots(message.data);
+          } else if (message.type === 'status') {
             const { agent: agentId, status, url } = message;
             setAgents(prevAgents => {
               let startedAgent: Agent | null = null;
@@ -157,9 +196,9 @@ export const useManagementSocket = ({ onAgentStarted }: { onAgentStarted: (agent
   };
 
   const startAgent = (agentId: string) => {
-    const agentIndex = agents.findIndex(a => a.id === agentId);
-    if (agentIndex !== -1 && agents[agentIndex].status === AgentStatus.STOPPED) {
-        const agent = agents[agentIndex];
+    const agent = agents.find(a => a.id === agentId);
+    if (agent && agent.status === AgentStatus.STOPPED) {
+        const agentIndex = agents.findIndex(a => a.id === agentId);
         setAgents(prev => prev.map(a => a.id === agentId ? { ...a, status: AgentStatus.STARTING } : a));
         
         const port = 8001 + agentIndex;
@@ -187,5 +226,5 @@ export const useManagementSocket = ({ onAgentStarted }: { onAgentStarted: (agent
     sendCommand({ action: 'stop_all' });
   };
 
-  return { agents, logs, isConnected, agentEvents, clearAgentEvents, startAgent, stopAgent, stopAllAgents };
+  return { agents, agentGroups, logs, isConnected, agentEvents, clearAgentEvents, startAgent, stopAgent, stopAllAgents };
 };

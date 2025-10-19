@@ -4,7 +4,8 @@ import { API_BASE_URL } from '../config';
 
 export const getAgentCode = async (agentId: string): Promise<AgentCode> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/agents/${agentId}/code`);
+    const encodedAgentId = encodeURIComponent(agentId);
+    const response = await fetch(`${API_BASE_URL}/agents/${encodedAgentId}/code`);
     if (!response.ok) {
       throw new HttpError(`HTTP error! status: ${response.status}`, response.status);
     }

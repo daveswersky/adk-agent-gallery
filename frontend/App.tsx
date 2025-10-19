@@ -22,7 +22,7 @@ const App: React.FC = () => {
     setSelectedAgent(agent);
   }, []);
 
-  const { agents, logs, isConnected, agentEvents, clearAgentEvents, startAgent, stopAgent, stopAllAgents } = useManagementSocket({ onAgentStarted: handleAgentStarted });
+  const { agents, agentGroups, logs, isConnected, agentEvents, clearAgentEvents, startAgent, stopAgent, stopAllAgents } = useManagementSocket({ onAgentStarted: handleAgentStarted });
 
   // State for resizable panes
   const [sidebarWidth, setSidebarWidth] = useState(384); // Corresponds to w-96
@@ -49,6 +49,7 @@ const App: React.FC = () => {
       setSelectedAgent(agent);
     }
   };
+
 
   const handleViewCode = async (agentId: string) => {
     try {
@@ -125,23 +126,39 @@ const App: React.FC = () => {
     };
   }, [agents]);
 
-  return (
-    <div className="flex h-screen bg-adk-dark text-adk-text font-sans antialiased overflow-hidden">
-      <div style={{ width: `${sidebarWidth}px` }} className="h-full flex-shrink-0">
-        <AgentSidebar
-          agents={agents}
-          selectedAgent={selectedAgent}
-          isConnected={isConnected}
-          onStart={startAgent}
-          onStop={stopAgent}
-          onStopAll={stopAllAgents}
-          onSelectAgent={handleSelectAgent}
-          onViewCode={handleViewCode}
-        />
-      </div>
+    return (
 
-      <div
-        onMouseDown={handleSidebarMouseDown}
+      <div className="flex h-screen bg-adk-dark text-adk-text font-sans antialiased overflow-hidden">
+
+        <div style={{ width: `${sidebarWidth}px` }} className="h-full flex-shrink-0">
+
+          <AgentSidebar
+
+            agentGroups={agentGroups}
+
+            selectedAgent={selectedAgent}
+
+            isConnected={isConnected}
+
+            onStart={startAgent}
+
+            onStop={stopAgent}
+
+            onStopAll={stopAllAgents}
+
+            onSelectAgent={handleSelectAgent}
+
+            onViewCode={handleViewCode}
+
+          />
+
+        </div>
+
+  
+
+        <div
+
+          onMouseDown={handleSidebarMouseDown}
         className="w-1.5 flex-shrink-0 cursor-col-resize bg-adk-dark-3 hover:bg-adk-accent transition-colors"
         aria-label="Resize sidebar"
         role="separator"

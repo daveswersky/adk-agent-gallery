@@ -15,6 +15,11 @@ This document is a running list of ideas for future enhancements to the Agent Ga
 
 
 ## FEATURES
+- [Grouped Agent List](./feature/grouped-agent-list.md): Display agents in collapsible groups based on the `agent_roots` defined in `gallery.config.yaml`.
+  - **Effort Assessment: FEATURE**
+  - This is a frontend-only enhancement to improve the organization and presentation of agents in the sidebar.
+  - **Backend:** No backend changes are required.
+  - **Frontend:** Requires fetching and parsing `gallery.config.yaml` to get the agent groups. The `AgentSidebar.tsx` component will be updated to render agents in collapsible sections. State management in `useManagementSocket.ts` will be adjusted to handle the grouped data structure.
 - [Warn on Browser Refresh](./feature/Warn-on-Refresh.md): Warn user on browser refresh that sessions will be reset.
   - **Effort Assessment: FEATURE**
   - This is a straightforward, frontend-only feature.

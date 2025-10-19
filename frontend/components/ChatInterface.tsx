@@ -75,7 +75,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, agentEvents
         if (agent) {
             setLoadingStatus({ type: 'thinking', message: 'Initializing session...' });
             try {
-                const session = await sessionManager.getSession(agent.name);
+                const session = await sessionManager.getSession(agent.id);
                 setCurrentSession(session);
                 setMessages([...session.history]);
             } catch (error) {
