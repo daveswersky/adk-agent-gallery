@@ -108,6 +108,23 @@ const App: React.FC = () => {
     };
   }, [isResizingSidebar, isResizingInfoPane]);
 
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      const isAgentRunning = agents.some(agent => agent.status === AgentStatus.RUNNING);
+      if (isAgentRunning) {
+        // Standard way to trigger the browser's native "are you sure?" prompt
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [agents]);
+
   return (
     <div className="flex h-screen bg-adk-dark text-adk-text font-sans antialiased overflow-hidden">
       <div style={{ width: `${sidebarWidth}px` }} className="h-full flex-shrink-0">
