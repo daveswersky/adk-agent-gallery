@@ -1,0 +1,3 @@
+OriginPort,DestinationPort,Carrier,TransitTimeDays
+Shanghai,LongBeach,OceanCarrierA,14
+Ningbo,LongBeach,OceanCarrierB,16
