@@ -24,12 +24,12 @@
 }
 
 .prose a {
-    color: #60a5fa; /* A nice blue color */
+    color: var(--tw-adk-accent);
     text-decoration: underline;
 }
 
 .prose code {
-    background-color: #2d3748; /* A dark background for code */
+    background-color: var(--tw-adk-dark-3); /* A dark background for code */
     padding: 0.2em 0.4em;
     margin: 0;
     font-size: 85%;
@@ -37,7 +37,7 @@
 }
 
 .prose pre {
-    background-color: #2d3748;
+    background-color: var(--tw-adk-dark-3);
     padding: 1em;
     border-radius: 5px;
     overflow-x: auto;

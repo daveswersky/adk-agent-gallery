@@ -14,30 +14,21 @@
 
 from google.adk.agents import LlmAgent
 
-def greeting_agent_fn(request):
-    """A function-based agent that conditionally returns markdown."""
-    user_input = request.get_user_input() or ""
+# This agent uses a single, robust prompt to handle conditional logic,
+# avoiding the need for a separate Python function which was causing regressions.
+greeting_agent = LlmAgent(
+    model="gemini-2.5-flash",
+    name="greeting_agent",
+    description="A simple agent that says hello. Type 'markdown' for a formatted response.",
+    instruction="""You are a friendly agent that greets the user. Your response should be short and sweet.
 
-    if "markdown" in user_input.lower():
-        # Use the markdown prompt if the keyword is present
-        prompt = """You are a friendly agent that greets the user.
-
-Your response MUST be formatted in Markdown and include the following elements:
+However, if the user's message contains the specific keyword "markdown", you MUST ignore the previous instruction and instead respond with a message formatted in Markdown that includes ALL of the following elements:
 - A level 1 heading (`#`)
 - A bulleted list
 - **Bold text**
 - A code block with a simple "hello world" example in Python.
-"""
-    else:
-        # Otherwise, use the standard simple prompt
-        prompt = "You are a friendly agent that greets the user. Your response should be short and sweet."
-
-    return request.with_prompt(prompt)
-
-greeting_agent = LlmAgent(
-    model="gemini-2.5-flash",
-    name="greeting_agent",
-    description="A simple agent that says hello. Type 'markdown' for a formatted response."
+- A link to the [Google ADK documentation](https://github.com/google/agent-development-kit).
+""",
 )
 
 root_agent = greeting_agent
