@@ -15,7 +15,13 @@ This document is a running list of ideas for future enhancements to the Agent Ga
 
 
 ## FEATURES
-- [Markdown Support](./feature/Markdown-Support.md): Display markdown-formatted responses from the model in the ChatInterface.
+- [Warn on Browser Refresh](./feature/Warn-on-Refresh.md): Warn user on browser refresh that sessions will be reset.
+  - **Effort Assessment: FEATURE**
+  - This is a straightforward, frontend-only feature.
+  - **Backend:** No backend changes are required as session state is managed on the client.
+  - **Frontend:** Requires adding a `beforeunload` event listener in a top-level component. The listener will check if any active sessions exist and, if so, trigger the browser's native confirmation prompt.
+- ~~[Markdown Support](./feature/Markdown-Support.md)~~: Display markdown-formatted responses from the model in the ChatInterface.
+  - **Status: Implemented & Merged**
   - **Effort Assessment: FEATURE**
   - This is a well-defined feature primarily focused on the frontend.
   - **Backend:** No backend changes are required. Agent responses are passed through as-is.
