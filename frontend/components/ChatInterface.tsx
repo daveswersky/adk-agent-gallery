@@ -40,7 +40,7 @@ const ChatBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
         <div className={`flex items-start gap-4 ${isUser ? 'justify-end' : 'justify-start'}`}>
             {!isUser && <div className={`flex-shrink-0 w-8 h-8 rounded-full ${getIconBgColor()} flex items-center justify-center`}>{getIcon()}</div>}
             <div className={`max-w-3xl p-4 rounded-lg shadow-md ${getBubbleColor()}`}>
-                {isModel ? <div className="prose"><ReactMarkdown>{message.content}</ReactMarkdown></div> : <p className="whitespace-pre-wrap">{message.content}</p>}
+                {isModel ? <ReactMarkdown>{message.content}</ReactMarkdown> : <p className="whitespace-pre-wrap">{message.content}</p>}
             </div>
             {isUser && <div className={`flex-shrink-0 w-8 h-8 rounded-full ${getIconBgColor()} flex items-center justify-center`}>{getIcon()}</div>}
         </div>
