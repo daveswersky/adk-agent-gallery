@@ -1,10 +1,10 @@
 import React from 'react';
 import { Flipper, Flipped } from 'react-flip-toolkit';
-import { Agent, AgentStatus } from '../types';
+import { Agent, AgentGroup, AgentStatus } from '../types';
 import { PlayIcon, StopIcon, SpinnerIcon, ClearIcon, CodeBracketIcon } from './icons';
 
 interface AgentSidebarProps {
-  agents: Agent[];
+  agentGroups: AgentGroup[];
   selectedAgent: Agent | null;
   isConnected: boolean;
   onStart: (id: string) => void;
@@ -94,7 +94,7 @@ const AgentListItem: React.FC<{
 };
 
 
-export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agents, selectedAgent, isConnected, onStart, onStop, onStopAll, onSelectAgent, onViewCode }) => {
+export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agentGroups, selectedAgent, isConnected, onStart, onStop, onStopAll, onSelectAgent, onViewCode }) => {
   const [searchTerm, setSearchTerm] = React.useState('');
 
   const handleStartAgent = React.useCallback((id: string) => {
@@ -102,22 +102,38 @@ export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agents, selectedAgen
     setSearchTerm('');
   }, [onStart, setSearchTerm]);
 
-  const sortedAgents = [...agents].sort((a, b) => {
-    const statusOrder = {
-      [AgentStatus.RUNNING]: 1,
-      [AgentStatus.STARTING]: 2,
-      [AgentStatus.STOPPING]: 3,
-      [AgentStatus.STOPPED]: 4,
-      [AgentStatus.ERROR]: 5,
-    };
-    return (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
-  });
+  const allAgents = agentGroups.flatMap(group => group.agents);
 
-  const filteredAgents = sortedAgents.filter(agent =>
-    agent.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const anyAgentRunning = allAgents.some(agent => agent.status === AgentStatus.RUNNING);
 
-  const anyAgentRunning = agents.some(agent => agent.status === AgentStatus.RUNNING);
+  const filteredAndSortedAgents = allAgents
+    .filter(agent => agent.name.toLowerCase().includes(searchTerm.toLowerCase()))
+    .sort((a, b) => {
+      const statusOrder = {
+        [AgentStatus.RUNNING]: 1,
+        [AgentStatus.STARTING]: 2,
+        [AgentStatus.STOPPING]: 3,
+        [AgentStatus.STOPPED]: 4,
+        [AgentStatus.ERROR]: 5,
+      };
+      return (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
+    });
+
+  const displayedGroups = searchTerm
+    ? [{ name: 'Search Results', agents: filteredAndSortedAgents }]
+    : agentGroups.map(group => ({
+        ...group,
+        agents: group.agents.sort((a, b) => {
+          const statusOrder = {
+            [AgentStatus.RUNNING]: 1,
+            [AgentStatus.STARTING]: 2,
+            [AgentStatus.STOPPING]: 3,
+            [AgentStatus.STOPPED]: 4,
+            [AgentStatus.ERROR]: 5,
+          };
+          return (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
+        })
+      }));
 
   return (
     <aside className="w-full h-full bg-adk-dark-2 flex flex-col border-r border-adk-dark-3">
@@ -155,30 +171,48 @@ export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agents, selectedAgen
         </button>
       </header>
       <div className="flex-1 overflow-y-auto p-4">
-        <Flipper flipKey={filteredAgents.map(a => a.id).join('')} className="space-y-4">
-          {filteredAgents.length > 0 ? filteredAgents.map((agent) => (
-            <Flipped key={agent.id} flipId={agent.id}>
-              <div>
-                <AgentListItem
-                  agent={agent}
-                  onStart={handleStartAgent}
-                  onStop={onStop}
-                  onSelect={onSelectAgent}
-                  onViewCode={onViewCode}
-                  isActive={selectedAgent?.id === agent.id}
-                />
+        <Flipper flipKey={filteredAndSortedAgents.map(a => a.id).join('')} className="space-y-4">
+          {displayedGroups.map(group => (
+            <details key={group.name} open className="group">
+              <summary className="text-lg font-semibold text-white cursor-pointer list-none -ml-2 p-2 rounded-md hover:bg-adk-dark-3">
+                <span className="transform transition-transform duration-200 group-open:rotate-90 inline-block mr-2">&#9656;</span>
+                {group.name}
+              </summary>
+              <div className="space-y-4 mt-2 pl-2 border-l-2 border-adk-dark-3">
+                {group.agents.length > 0 ? group.agents.map((agent) => (
+                  <Flipped key={agent.id} flipId={agent.id}>
+                    <div>
+                      <AgentListItem
+                        agent={agent}
+                        onStart={handleStartAgent}
+                        onStop={onStop}
+                        onSelect={onSelectAgent}
+                        onViewCode={onViewCode}
+                        isActive={selectedAgent?.id === agent.id}
+                      />
+                    </div>
+                  </Flipped>
+                )) : (
+                  !searchTerm && (
+                    <div className="text-center py-6 text-adk-text-secondary">
+                      <p>No agents in this group.</p>
+                    </div>
+                  )
+                )}
               </div>
-            </Flipped>
-          )) : (
+            </details>
+          ))}
+          {agentGroups.length > 0 && filteredAndSortedAgents.length === 0 && searchTerm && (
             <div className="text-center py-12 text-adk-text-secondary">
-              {agents.length > 0 && searchTerm ? (
-                <p>No agents found for "{searchTerm}"</p>
-              ) : (
+              <p>No agents found for "{searchTerm}"</p>
+            </div>
+          )}
+          {agentGroups.length === 0 && !searchTerm && (
+             <div className="text-center py-12 text-adk-text-secondary">
                 <>
                   <SpinnerIcon className="w-8 h-8 mx-auto animate-spin-slow mb-4" />
                   <p>Waiting for agent data...</p>
                 </>
-              )}
             </div>
           )}
         </Flipper>

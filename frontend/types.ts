@@ -24,10 +24,16 @@ export interface Agent {
   url?: string;
 }
 
+export interface AgentGroup {
+  name: string;
+  agents: Agent[];
+}
+
 export interface AgentCode {
   filename: string;
   content: string;
 }
+
 
 export interface ChatMessage {
   role: 'user' | 'model' | 'tool';
@@ -49,7 +55,13 @@ export interface LogMessage {
     line: string;
 }
 
-export type ServerMessage = StatusMessage | LogMessage;
+export interface ConfigMessage {
+  type: 'config';
+  data: { name: string; path: string }[];
+}
+
+export type ServerMessage = StatusMessage | LogMessage | ConfigMessage;
+
 
 // WebSocket message types from client
 export interface StartAgentCommand {

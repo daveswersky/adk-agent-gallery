@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import re
+import yaml
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict
@@ -11,6 +12,18 @@ from backend.connection_manager import manager, running_processes, starting_agen
 from backend.agent_runner import AgentRunner
 
 app = FastAPI()
+
+# Load gallery configuration
+CONFIG = {}
+try:
+    with open("gallery.config.yaml", "r") as f:
+        CONFIG = yaml.safe_load(f)
+except FileNotFoundError:
+    print("gallery.config.yaml not found. Using default settings.")
+except yaml.YAMLError as e:
+    print(f"Error parsing gallery.config.yaml: {e}")
+
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -39,19 +52,25 @@ async def shutdown_event():
 
 @app.get("/agents")
 async def get_agents():
-    """Scans agent directories and returns a list of available agents."""
+    """Scans agent directories defined in the config and returns a list of available agents."""
     agents = []
-    agent_dirs = [
-        os.path.abspath("agents"),
-        os.path.abspath("agents/adk-samples/python/agents")
-    ]
+    agent_roots = CONFIG.get("agent_roots", [])
+    if not agent_roots:
+        print("Warning: 'agent_roots' not defined in gallery.config.yaml. No agents will be loaded.")
+        return []
 
-    for agents_dir in agent_dirs:
+    for root in agent_roots:
+        agents_dir = os.path.abspath(root.get("path"))
+        exclusions = root.get("exclude", [])
+        
         if not os.path.exists(agents_dir):
+            print(f"Warning: Agent directory not found: {agents_dir}")
             continue
+
         for agent_id in os.listdir(agents_dir):
-            if agent_id == 'adk-samples':
+            if agent_id in exclusions or agent_id.startswith('.'):
                 continue
+
             agent_path = os.path.join(agents_dir, agent_id)
             if os.path.isdir(agent_path):
                 description = f"The {agent_id} agent."  # Default description
@@ -69,38 +88,42 @@ async def get_agents():
                             content = f.read()
                             match = re.search(r'description=\(?\s*["\']([^"\']+)["\']', content, re.DOTALL)
                             if match:
-                                description = match.group(1)
+                                description = match.group(1).strip()
                     except Exception as e:
                         print(f"Could not read or parse {agent_py_path}: {e}")
 
                 agents.append({
-                    "id": agent_id,
+                    "id": os.path.join(root.get("path"), agent_id), # Use full path for ID
                     "name": agent_id,
                     "description": description,
                 })
     return agents
 
-@app.get("/agents/{agent_name}/code")
+
+@app.get("/agents/{agent_name:path}/code")
 async def get_agent_code(agent_name: str):
     """Finds and returns the code for a specified agent."""
-    possible_paths = [
-        os.path.abspath(f"agents/{agent_name}"),
-        os.path.abspath(f"agents/adk-samples/python/agents/{agent_name}")
-    ]
-    agent_path = next((path for path in possible_paths if os.path.exists(path)), None)
-    if not agent_path:
-        raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found.")
+    agent_path = os.path.abspath(agent_name)
+    if not os.path.isdir(agent_path):
+        raise HTTPException(status_code=404, detail=f"Agent directory '{agent_name}' not found.")
 
     # Normalize the agent name for module lookup (e.g., 'my-agent' -> 'my_agent')
-    module_name = agent_name.replace('-', '_')
+    base_name = os.path.basename(agent_name)
+    module_name = base_name.replace('-', '_')
     
-    # Check for nested structure first
+    # Check for nested structure first (e.g., my-agent/my_agent/agent.py)
     nested_agent_py_path = os.path.join(agent_path, module_name, "agent.py")
+    # Check for flat structure (e.g., my-agent/agent.py)
     flat_agent_py_path = os.path.join(agent_path, "agent.py")
+    # Check for alternative nested structure (e.g., my-agent/my-agent/agent.py)
+    alt_nested_agent_py_path = os.path.join(agent_path, base_name, "agent.py")
+
 
     agent_py_path = None
     if os.path.exists(nested_agent_py_path):
         agent_py_path = nested_agent_py_path
+    elif os.path.exists(alt_nested_agent_py_path):
+        agent_py_path = alt_nested_agent_py_path
     elif os.path.exists(flat_agent_py_path):
         agent_py_path = flat_agent_py_path
     else:
@@ -116,85 +139,83 @@ async def get_agent_code(agent_name: str):
 @app.post("/run_turn")
 async def run_turn(request: TurnRequest):
     """Runs a single turn of the agent."""
-    agent_name = request.agent_name
+    agent_path = request.agent_name
     prompt = request.prompt
     
-    if agent_name not in running_processes:
-        raise HTTPException(status_code=404, detail="Agent not found or not running.")
+    if agent_path not in running_processes:
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_path}' not found or not running.")
         
-    agent_info = running_processes[agent_name]
+    agent_info = running_processes[agent_path]
     runner = agent_info["runner"]
     
     # The runner now returns a dictionary with "response" and "events"
     turn_result = await runner.run_turn(prompt)
     return turn_result
 
-async def start_agent_process(agent_name: str, port: int):
+async def start_agent_process(agent_path: str, port: int):
     """Starts and monitors an agent, ensuring cleanup on termination."""
-    await manager.broadcast(json.dumps({"type": "log", "agent": agent_name, "line": "Agent startup process started."}))
+    agent_name_for_display = os.path.basename(agent_path)
+    await manager.broadcast(json.dumps({"type": "log", "agent": agent_name_for_display, "line": "Agent startup process started."}))
     
     async with startup_lock:
-        if agent_name in running_processes or agent_name in starting_agents:
-            status = "already_running" if agent_name in running_processes else "starting"
-            await manager.broadcast(json.dumps({"type": "status", "agent": agent_name, "status": status}))
+        if agent_path in running_processes or agent_path in starting_agents:
+            status = "already_running" if agent_path in running_processes else "starting"
+            await manager.broadcast(json.dumps({"type": "status", "agent": agent_path, "status": status}))
             return
-        starting_agents.add(agent_name)
+        starting_agents.add(agent_path)
 
     runner = None
     try:
-        possible_paths = [
-            os.path.abspath(f"agents/{agent_name}"),
-            os.path.abspath(f"agents/adk-samples/python/agents/{agent_name}")
-        ]
-        agent_path = next((path for path in possible_paths if os.path.exists(path)), None)
-        if not agent_path:
-            raise FileNotFoundError(f"Agent '{agent_name}' not found.")
+        agent_abs_path = os.path.abspath(agent_path)
+        if not os.path.isdir(agent_abs_path):
+            raise FileNotFoundError(f"Agent directory '{agent_path}' not found.")
 
-        runner = AgentRunner(agent_name, agent_path, port)
+        runner = AgentRunner(agent_path, agent_abs_path, port)
         await runner.start()
 
         agent_url = f"http://localhost:{port}"
-        running_processes[agent_name] = {"runner": runner, "url": agent_url}
-        starting_agents.remove(agent_name)
+        running_processes[agent_path] = {"runner": runner, "url": agent_url}
+        starting_agents.remove(agent_path)
         
         await manager.broadcast(json.dumps({
             "type": "status",
-            "agent": agent_name,
+            "agent": agent_path,
             "status": "running",
             "pid": runner.process.pid,
             "url": agent_url
         }))
 
         await runner.process.wait()
-        print(f"--- DEBUG: Process for '{agent_name}' terminated.")
+        print(f"--- DEBUG: Process for '{agent_name_for_display}' terminated.")
 
     except Exception as e:
-        error_msg = f"An unexpected error occurred while starting {agent_name}: {e}"
+        error_msg = f"An unexpected error occurred while starting {agent_path}: {e}"
         print(error_msg)
-        await manager.broadcast(json.dumps({"type": "log", "agent": agent_name, "line": f"[FATAL] {error_msg}"}))
-        await manager.broadcast(json.dumps({"type": "status", "agent": agent_name, "status": "failed"}))
+        await manager.broadcast(json.dumps({"type": "log", "agent": agent_name_for_display, "line": f"[FATAL] {error_msg}"}))
+        await manager.broadcast(json.dumps({"type": "status", "agent": agent_path, "status": "failed"}))
     finally:
-        print(f"--- DEBUG: Cleaning up state for '{agent_name}'.")
-        if agent_name in running_processes:
-            del running_processes[agent_name]
-        if agent_name in starting_agents:
-            starting_agents.remove(agent_name)
+        print(f"--- DEBUG: Cleaning up state for '{agent_path}'.")
+        if agent_path in running_processes:
+            del running_processes[agent_path]
+        if agent_path in starting_agents:
+            starting_agents.remove(agent_path)
         
-        await manager.broadcast(json.dumps({"type": "status", "agent": agent_name, "status": "stopped", "url": None}))
-        print(f"--- DEBUG: Cleanup for '{agent_name}' complete.")
+        await manager.broadcast(json.dumps({"type": "status", "agent": agent_path, "status": "stopped", "url": None}))
+        print(f"--- DEBUG: Cleanup for '{agent_path}' complete.")
 
 
-async def stop_agent_process(agent_name: str):
+async def stop_agent_process(agent_path: str):
     """Stops a running ADK agent process."""
-    print(f"--- DEBUG: Received stop command for '{agent_name}'")
-    if agent_name in running_processes:
-        runner = running_processes[agent_name]["runner"]
+    agent_name_for_display = os.path.basename(agent_path)
+    print(f"--- DEBUG: Received stop command for '{agent_name_for_display}' ({agent_path})")
+    if agent_path in running_processes:
+        runner = running_processes[agent_path]["runner"]
         print(f"--- DEBUG: Found runner. Calling runner.stop().")
         # This will terminate the process, which unblocks the 'await wait()'
         # in the original start_agent_process task.
         await runner.stop()
         return
-    print(f"--- DEBUG: Agent '{agent_name}' not found in running_processes.")
+    print(f"--- DEBUG: Agent '{agent_path}' not found in running_processes.")
 
 
 async def stop_all_agents():
@@ -207,6 +228,9 @@ async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     
     try:
+        # Send config on connect
+        await websocket.send_json({"type": "config", "data": CONFIG.get("agent_roots", [])})
+        
         await websocket.send_text(json.dumps({"type": "log", "agent": "server", "line": "Connection established."}))
 
         for agent_name, agent_info in running_processes.items():

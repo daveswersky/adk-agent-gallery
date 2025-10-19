@@ -31,14 +31,14 @@ const fileToBase64 = (file: File): Promise<string> => {
 
 class Session {
     public sessionId: string;
-    private agentName: string;
+    private agentId: string;
     private userId: string;
     public history: ChatMessage[] = [];
     public requestHistory: RequestRecord[] = [];
 
-    constructor(agentName: string) {
+    constructor(agentId: string) {
         this.sessionId = uuidv4();
-        this.agentName = agentName;
+        this.agentId = agentId;
         this.userId = "forusone";
     }
 
@@ -99,7 +99,7 @@ class Session {
         }
 
         const body = {
-            agent_name: this.agentName,
+            agent_name: this.agentId,
             prompt: prompt,
         };
         const options = {

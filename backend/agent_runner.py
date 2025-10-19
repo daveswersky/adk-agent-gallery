@@ -68,8 +68,9 @@ async def _read_pip_stream(stream, agent_name: str, is_error_stream: bool):
 class AgentRunner:
     """Manages the lifecycle of a single agent subprocess."""
 
-    def __init__(self, agent_name: str, agent_path: str, port: int):
-        self.agent_name = agent_name
+    def __init__(self, agent_id: str, agent_path: str, port: int):
+        self.agent_id = agent_id
+        self.agent_name = os.path.basename(agent_id)
         self.agent_path = agent_path
         self.port = port
         self.process: Optional[asyncio.subprocess.Process] = None
@@ -86,7 +87,7 @@ class AgentRunner:
 
         # 1. Create virtual environment if it doesn't exist
         if not os.path.exists(venv_path):
-            await manager.broadcast(json.dumps({"type": "status", "agent": self.agent_name, "status": "creating_venv"}))
+            await manager.broadcast(json.dumps({"type": "status", "agent": self.agent_id, "status": "creating_venv"}))
             proc = await asyncio.create_subprocess_exec(
                 "python3", "-m", "venv", venv_path,
                 stdout=asyncio.subprocess.PIPE,
@@ -165,7 +166,7 @@ class AgentRunner:
                         env[str(key)] = os.path.expandvars(str(value))
 
         # 3. Install dependencies (agent and host)
-        await manager.broadcast(json.dumps({"type": "status", "agent": self.agent_name, "status": "installing_dependencies"}))
+        await manager.broadcast(json.dumps({"type": "status", "agent": self.agent_id, "status": "installing_dependencies"}))
         env["VIRTUAL_ENV"] = venv_path
         
         # Install agent requirements
@@ -239,7 +240,7 @@ class AgentRunner:
         loop = asyncio.get_running_loop()
         read_pipe = os.fdopen(read_fd, 'r')
         transport, self.event_protocol = await loop.connect_read_pipe(
-            lambda: EventStreamProtocol(self.agent_name),
+            lambda: EventStreamProtocol(self.agent_id),
             read_pipe
         )
 
