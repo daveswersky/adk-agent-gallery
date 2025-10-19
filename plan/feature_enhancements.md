@@ -15,7 +15,11 @@ This document is a running list of ideas for future enhancements to the Agent Ga
 
 
 ## FEATURES
-- Markdown view support in ChatInterface. Display markdown-formatted responses from the model.
+- [Markdown Support](./feature/Markdown-Support.md): Display markdown-formatted responses from the model in the ChatInterface.
+  - **Effort Assessment: FEATURE**
+  - This is a well-defined feature primarily focused on the frontend.
+  - **Backend:** No backend changes are required. Agent responses are passed through as-is.
+  - **Frontend:** Requires integrating a Markdown rendering library (like `react-markdown`) into the `ChatInterface.tsx` component. The component that displays agent messages will need to be updated to parse and render the markdown content instead of displaying it as plain text. Minimal state management changes are needed.
 - [Agent Code View](./feature/Agent-Code-View.md): click a code icon in an agent card to see the code in a popup or viewer pane
   - **Effort Assessment: FEATURE**
   - This is a well-defined feature with a clear implementation path.

@@ -193,7 +193,8 @@ All work for designated `EPIC`s and `FEATURE`s **MUST** be performed on a dedica
 
 ## Technical Notes
 
-*   **ADK Plugin Namespace:** The `BasePlugin` must be imported from `google.adk.plugins`. The `google.adk.core.plugins` namespace is incorrect and should not be used.
+*   **ADK Plugin Namespace:** The `BasePlugin` must be imported from `google.adk.plugins`.
+*   **`google.adk.core` is not a valid namespace.** This is a frequent source of regressions. Core ADK objects are found in other namespaces like `google.adk.agents`, `google.adk.services.inference`, and `google.adk.events`. When in doubt, always verify import paths against the official ADK documentation.
 
 ## Project Directives
 
