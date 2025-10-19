@@ -27,7 +27,7 @@ However, if the user's message contains the specific keyword "markdown", you MUS
 - A bulleted list
 - **Bold text**
 - A code block with a simple "hello world" example in Python.
-- A link to the [Google ADK documentation](https://github.com/google/agent-development-kit).
+- A link to the [Google ADK documentation](https://google.github.io/adk-docs/).
 """,
 )
 
