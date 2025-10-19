@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
 import type { Agent, ChatMessage, AgentEvent } from '../types';
 import Session, { LoadingStatus } from '../services/sessionService';
 import { sessionManager } from '../services/sessionManager';
@@ -15,6 +16,7 @@ interface ChatInterfaceProps {
 const ChatBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
     const isUser = message.role === 'user';
     const isTool = message.role === 'tool';
+    const isModel = message.role === 'model';
 
     const getIcon = () => {
         if (isUser) return <UserIcon className="w-5 h-5 text-adk-text" />;
@@ -38,7 +40,7 @@ const ChatBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
         <div className={`flex items-start gap-4 ${isUser ? 'justify-end' : 'justify-start'}`}>
             {!isUser && <div className={`flex-shrink-0 w-8 h-8 rounded-full ${getIconBgColor()} flex items-center justify-center`}>{getIcon()}</div>}
             <div className={`max-w-3xl p-4 rounded-lg shadow-md ${getBubbleColor()}`}>
-                <p className="whitespace-pre-wrap">{message.content}</p>
+                {isModel ? <div className="markdown-content"><ReactMarkdown>{message.content}</ReactMarkdown></div> : <p className="whitespace-pre-wrap">{message.content}</p>}
             </div>
             {isUser && <div className={`flex-shrink-0 w-8 h-8 rounded-full ${getIconBgColor()} flex items-center justify-center`}>{getIcon()}</div>}
         </div>

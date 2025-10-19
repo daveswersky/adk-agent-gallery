@@ -1,1 +1,5 @@
 /* Add your styles here */
+
+.markdown-content a {
+    text-decoration: underline;
+}
