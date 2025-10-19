@@ -1,0 +1,1 @@
+Supplier ABC: Primary supplier for SKU 8675. Supplier XYZ: Secondary supplier for SKU 8675, with a lead time of 1 day longer and 10% higher cost.
