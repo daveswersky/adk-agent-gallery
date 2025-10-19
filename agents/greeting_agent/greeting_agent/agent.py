@@ -14,11 +14,30 @@
 
 from google.adk.agents import LlmAgent
 
+def greeting_agent_fn(request):
+    """A function-based agent that conditionally returns markdown."""
+    user_input = request.get_user_input() or ""
+
+    if "markdown" in user_input.lower():
+        # Use the markdown prompt if the keyword is present
+        prompt = """You are a friendly agent that greets the user.
+
+Your response MUST be formatted in Markdown and include the following elements:
+- A level 1 heading (`#`)
+- A bulleted list
+- **Bold text**
+- A code block with a simple "hello world" example in Python.
+"""
+    else:
+        # Otherwise, use the standard simple prompt
+        prompt = "You are a friendly agent that greets the user. Your response should be short and sweet."
+
+    return request.with_prompt(prompt)
+
 greeting_agent = LlmAgent(
     model="gemini-2.5-flash",
     name="greeting_agent",
-    instruction="You are a friendly agent that greets the user. Your response should be short and sweet.",
-    description="A simple agent that says hello.",
+    description="A simple agent that says hello. Type 'markdown' for a formatted response."
 )
 
 root_agent = greeting_agent

@@ -1,1 +1,49 @@
 /* Add your styles here */
+
+/* Basic Markdown Styling */
+.prose {
+    color: inherit;
+}
+
+.prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
+    color: inherit;
+    margin-bottom: 0.5em;
+}
+
+.prose p {
+    margin-bottom: 1em;
+}
+
+.prose ul, .prose ol {
+    margin-left: 1.5em;
+    margin-bottom: 1em;
+}
+
+.prose li {
+    margin-bottom: 0.25em;
+}
+
+.prose a {
+    color: #60a5fa; /* A nice blue color */
+    text-decoration: underline;
+}
+
+.prose code {
+    background-color: #2d3748; /* A dark background for code */
+    padding: 0.2em 0.4em;
+    margin: 0;
+    font-size: 85%;
+    border-radius: 3px;
+}
+
+.prose pre {
+    background-color: #2d3748;
+    padding: 1em;
+    border-radius: 5px;
+    overflow-x: auto;
+}
+
+.prose pre code {
+    padding: 0;
+    background-color: transparent;
+}
