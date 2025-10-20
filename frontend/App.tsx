@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import type { Agent, AgentCode } from './types';
+import type { Agent, AgentCodeComplex } from './types';
 import { AgentStatus } from './types';
 import { useManagementSocket } from './hooks/useManagementSocket';
 import { AgentSidebar } from './components/AgentSidebar';
@@ -12,12 +12,6 @@ import CodeViewerModal from './components/CodeViewerModal';
 const MIN_SIDEBAR_WIDTH = 280; // px
 const MAX_SIDEBAR_WIDTH = 600; // px
 const MIN_INFO_PANE_HEIGHT = 120; // px
-
-interface AgentCodeComplex {
-  main_agent: AgentCode;
-  sub_agents: AgentCode[];
-}
-
 
 const App: React.FC = () => {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);

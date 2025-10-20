@@ -1,17 +1,10 @@
 import React, { useState } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { atomDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
-
-interface AgentCode {
-  name: string;
-  code: string;
-}
+import { AgentCode, AgentCodeComplex } from '../types';
 
 interface CodeViewerModalProps {
-  agentCode: {
-    main_agent: AgentCode;
-    sub_agents: AgentCode[];
-  } | null;
+  agentCode: AgentCodeComplex | null;
   onClose: () => void;
 }
 
@@ -36,7 +29,7 @@ const CodeViewerModal: React.FC<CodeViewerModalProps> = ({ agentCode, onClose })
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-      <div className="bg-gray-800 text-white rounded-lg shadow-xl w-3/p h-3/4 flex flex-col">
+      <div className="bg-gray-800 text-white rounded-lg shadow-xl w-3/4 h-3/4 flex flex-col">
         <div className="p-4 border-b border-gray-700 flex justify-between items-center">
           <h2 className="text-xl font-semibold">{activeFilename}</h2>
           <button

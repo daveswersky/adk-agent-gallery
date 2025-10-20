@@ -29,9 +29,19 @@ export interface AgentGroup {
   agents: Agent[];
 }
 
-export interface AgentCode {
+export interface AgentCodeFile {
   filename: string;
   content: string;
+}
+
+export interface AgentCode {
+  name: string;
+  code: string;
+}
+
+export interface AgentCodeComplex {
+  main_agent: AgentCode;
+  sub_agents: AgentCode[];
 }
 
 
