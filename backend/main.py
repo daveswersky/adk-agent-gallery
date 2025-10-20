@@ -245,6 +245,7 @@ async def get_agent_static_file(agent_name: str, file_path: str):
     # Normalize the paths and ensure the requested file is within the agent's directory.
     static_file_path = os.path.normpath(os.path.join(agent_path, file_path))
     if not static_file_path.startswith(os.path.normpath(agent_path)):
+        print(f"WARNING: Directory traversal attempt detected: {file_path}")
         raise HTTPException(status_code=403, detail="File path is outside the agent directory.")
 
     if not os.path.isfile(static_file_path):
