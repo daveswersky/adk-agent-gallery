@@ -5,6 +5,7 @@ from google.adk.tools.agent_tool import AgentTool
 from .sub_agents.impact_agent.agent import root_agent as impact_agent
 from .sub_agents.research_agent.agent import root_agent as research_agent
 
+## Simplistic implementation of a supply chain agent. A more sophisticated implementation could use a SequentialAgent to enforce control flow
 root_agent = LlmAgent(
     name="RapidResolveAgent",
     description="A proactive agent that assesses impact and finds solutions for supply chain disruptions by orchestrating sub-agents.",
