@@ -17,6 +17,21 @@ export const getAgentCode = async (agentId: string): Promise<AgentCode> => {
   }
 };
 
+export const getAgentCodeWithSubagents = async (agentId: string): Promise<any> => {
+  try {
+    const encodedAgentId = encodeURIComponent(agentId);
+    const response = await fetch(`${API_BASE_URL}/agents/${encodedAgentId}/code_with_subagents`);
+    if (!response.ok) {
+      throw new HttpError(`HTTP error! status: ${response.status}`, response.status);
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error(`Error fetching code for agent ${agentId} with subagents:`, error);
+    throw error;
+  }
+};
+
 export const causeError = async (agent: Agent): Promise<void> => {
   try {
     const response = await fetch(`${agent.url}/nonexistent-endpoint`, {

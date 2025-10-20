@@ -136,6 +136,76 @@ async def get_agent_code(agent_name: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error reading agent file: {e}")
 
+
+@app.get("/agents/{agent_name:path}/code_with_subagents")
+async def get_agent_code_with_subagents(agent_name: str):
+    """Finds and returns the code for a specified agent and its sub-agents."""
+    agent_path = os.path.abspath(agent_name)
+    if not os.path.isdir(agent_path):
+        raise HTTPException(status_code=404, detail=f"Agent directory '{agent_name}' not found.")
+
+    base_name = os.path.basename(agent_name)
+    module_name = base_name.replace('-', '_')
+
+    # Find main agent code
+    main_agent_code = None
+    main_agent_filename = "agent.py"
+    
+    # Potential paths for the main agent's code file
+    possible_paths = [
+        os.path.join(agent_path, module_name, "agent.py"),
+        os.path.join(agent_path, base_name, "agent.py"),
+        os.path.join(agent_path, "agent.py")
+    ]
+
+    agent_py_path = None
+    for path in possible_paths:
+        if os.path.exists(path):
+            agent_py_path = path
+            break
+    
+    if not agent_py_path:
+        raise HTTPException(status_code=404, detail=f"Primary agent file not found for '{agent_name}'.")
+
+    try:
+        with open(agent_py_path, "r") as f:
+            main_agent_code = f.read()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading main agent file: {e}")
+
+    response = {
+        "main_agent": {"name": base_name, "code": main_agent_code},
+        "sub_agents": []
+    }
+
+    # Find sub-agents
+    # The convention is that the sub-agents are in a directory named after the
+    # main agent's module name.
+    sub_agents_dir = os.path.join(agent_path, module_name, "sub_agents")
+    if not os.path.isdir(sub_agents_dir):
+        # Try the other convention
+        sub_agents_dir = os.path.join(agent_path, base_name, "sub_agents")
+
+
+    if os.path.isdir(sub_agents_dir):
+        for sub_agent_name in os.listdir(sub_agents_dir):
+            sub_agent_path = os.path.join(sub_agents_dir, sub_agent_name)
+            if os.path.isdir(sub_agent_path):
+                sub_agent_py_path = os.path.join(sub_agent_path, "agent.py")
+                if os.path.exists(sub_agent_py_path):
+                    try:
+                        with open(sub_agent_py_path, "r") as f:
+                            sub_agent_code = f.read()
+                        response["sub_agents"].append({
+                            "name": sub_agent_name,
+                            "code": sub_agent_code
+                        })
+                    except Exception as e:
+                        # Log the error but continue, so one broken sub-agent doesn't fail the whole request
+                        print(f"Error reading sub-agent file {sub_agent_py_path}: {e}")
+
+    return response
+
 @app.post("/run_turn")
 async def run_turn(request: TurnRequest):
     """Runs a single turn of the agent."""
