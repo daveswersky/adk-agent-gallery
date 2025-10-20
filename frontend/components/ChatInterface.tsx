@@ -1,13 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import type { Agent, ChatMessage, AgentEvent } from '../types';
 import Session, { LoadingStatus } from '../services/sessionService';
 import { sessionManager } from '../services/sessionManager';
 import { SendIcon, UserIcon, BotIcon, SpinnerIcon, TransferIcon, FileUploadIcon, ToolIcon, BookOpenIcon } from './icons';
 import { AgentStatus } from '../types';
 
-import { causeError } from '../services/agentService';
+import { API_BASE_URL } from '../config';
 
 interface ChatInterfaceProps {
   agent: Agent | null;
@@ -44,7 +45,7 @@ const ChatBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
         <div className={`flex items-start gap-4 ${isUser ? 'justify-end' : 'justify-start'}`}>
             {!isUser && <div className={`flex-shrink-0 w-8 h-8 rounded-full ${getIconBgColor()} flex items-center justify-center`}>{getIcon()}</div>}
             <div className={`max-w-3xl p-4 rounded-lg shadow-md ${getBubbleColor()}`}>
-                {isModel ? <div className="markdown-content"><ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown></div> : <p className="whitespace-pre-wrap">{message.content}</p>}
+                {isModel ? <div className="markdown-content"><ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{message.content}</ReactMarkdown></div> : <p className="whitespace-pre-wrap">{message.content}</p>}
             </div>
             {isUser && <div className={`flex-shrink-0 w-8 h-8 rounded-full ${getIconBgColor()} flex items-center justify-center`}>{getIcon()}</div>}
         </div>
@@ -231,6 +232,21 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, agentEvents
     }
   };
 
+  // Custom image renderer to resolve relative paths
+  const transformImageUri = (src: string) => {
+    // If the src is a full URL, use it as is.
+    if (src.startsWith('http://') || src.startsWith('https://')) {
+      return src;
+    }
+    // Otherwise, construct the URL to the static file endpoint.
+    if (agent) {
+      const encodedAgentId = encodeURIComponent(agent.id);
+      const encodedSrc = encodeURIComponent(src);
+      return `${API_BASE_URL}/agents/${encodedAgentId}/static/${encodedSrc}`;
+    }
+    return src;
+  };
+
   // If the agent isn't running, show the README view.
   if (agent.status !== AgentStatus.RUNNING) {
     return (
@@ -247,7 +263,13 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, agentEvents
             </div>
           ) : (
             <div className="markdown-content">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{readmeContent || 'No README content available.'}</ReactMarkdown>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeRaw]}
+                urlTransform={transformImageUri}
+              >
+                {readmeContent || 'No README content available.'}
+              </ReactMarkdown>
             </div>
           )}
         </main>
