@@ -30,14 +30,14 @@ export const useManagementSocket = ({ onAgentStarted }: { onAgentStarted: (agent
 
   useEffect(() => {
     if (agentRoots.length > 0 && agents.length > 0) {
-      const runningAgents = agents.filter(agent => 
-        agent.status === AgentStatus.RUNNING || 
-        agent.status === AgentStatus.STARTING || 
+      const runningAgents = agents.filter(agent =>
+        agent.status === AgentStatus.RUNNING ||
+        agent.status === AgentStatus.STARTING ||
         agent.status === AgentStatus.STOPPING
       );
 
-      const stoppedAgents = agents.filter(agent => 
-        agent.status === AgentStatus.STOPPED || 
+      const stoppedAgents = agents.filter(agent =>
+        agent.status === AgentStatus.STOPPED ||
         agent.status === AgentStatus.ERROR
       );
 
@@ -46,10 +46,24 @@ export const useManagementSocket = ({ onAgentStarted }: { onAgentStarted: (agent
         agents: runningAgents,
       };
 
+      // Sort roots by path length, descending, to find the most specific match first.
+      const sortedRoots = [...agentRoots].sort((a, b) => b.path.length - a.path.length);
+      
+      // Create a map of agentId -> groupName
+      const agentToGroupMap = new Map<string, string>();
+      stoppedAgents.forEach(agent => {
+        const bestRoot = sortedRoots.find(root => agent.id.startsWith(root.path));
+        if (bestRoot) {
+          agentToGroupMap.set(agent.id, bestRoot.name);
+        }
+      });
+
+      // Create groups based on the original agentRoots order
       const otherGroups: AgentGroup[] = agentRoots.map(root => ({
         name: root.name,
-        agents: stoppedAgents.filter(agent => agent.id.startsWith(root.path))
+        agents: stoppedAgents.filter(agent => agentToGroupMap.get(agent.id) === root.name)
       }));
+
 
       const newGroups = [];
       if (runningGroup.agents.length > 0) {
