@@ -2,7 +2,8 @@
 
 This document is a running list of ideas for future enhancements to the Agent Gallery project.
 
-## A2A
+## Epics
+
 - [A2A support](./epic/A2A-Support.md)
   - **Effort Assessment: EPIC**
   - Implementing Agent-to-Agent communication would require a significant architectural change. The current architecture isolates each agent in its own subprocess with no direct communication channels.
@@ -12,35 +13,6 @@ This document is a running list of ideas for future enhancements to the Agent Ga
     - **API and State Management:** The backend's concept of a "turn" would need to evolve to manage multi-agent conversational state.
     - **Frontend UI:** The UI would require substantial work to visualize and manage A2A interactions (e.g., grouping agents that are communicating).
   - This epic would need to be broken down into smaller, more manageable features.
-
-
-## FEATURES
-- [Grouped Agent List](./feature/grouped-agent-list.md): Display agents in collapsible groups based on the `agent_roots` defined in `gallery.config.yaml`.
-  - **Effort Assessment: FEATURE**
-  - This is a frontend-only enhancement to improve the organization and presentation of agents in the sidebar.
-  - **Backend:** No backend changes are required.
-  - **Frontend:** Requires fetching and parsing `gallery.config.yaml` to get the agent groups. The `AgentSidebar.tsx` component will be updated to render agents in collapsible sections. State management in `useManagementSocket.ts` will be adjusted to handle the grouped data structure.
-- [Warn on Browser Refresh](./feature/Warn-on-Refresh.md): Warn user on browser refresh that sessions will be reset.
-  - **Effort Assessment: FEATURE**
-  - This is a straightforward, frontend-only feature.
-  - **Backend:** No backend changes are required as session state is managed on the client.
-  - **Frontend:** Requires adding a `beforeunload` event listener in a top-level component. The listener will check if any active sessions exist and, if so, trigger the browser's native confirmation prompt.
-- ~~[Markdown Support](./feature/Markdown-Support.md)~~: Display markdown-formatted responses from the model in the ChatInterface.
-  - **Status: Implemented & Merged**
-  - **Effort Assessment: FEATURE**
-  - This is a well-defined feature primarily focused on the frontend.
-  - **Backend:** No backend changes are required. Agent responses are passed through as-is.
-  - **Frontend:** Requires integrating a Markdown rendering library (like `react-markdown`) into the `ChatInterface.tsx` component. The component that displays agent messages will need to be updated to parse and render the markdown content instead of displaying it as plain text. Minimal state management changes are needed.
-- [Agent Code View](./feature/Agent-Code-View.md): click a code icon in an agent card to see the code in a popup or viewer pane
-  - **Effort Assessment: FEATURE**
-  - This is a well-defined feature with a clear implementation path.
-  - **Backend:** Requires a new API endpoint (e.g., `/agents/{agent_id}/code`) that reads and returns the content of the agent's primary Python file. The backend already has logic for locating agent files.
-  - **Frontend:** Requires adding a new icon/button to the `AgentListItem` component, a new function to fetch the code from the backend, and a new modal component to display the code. No major state management or architectural changes are needed.
-- [Improved Code Viewer](./feature/Improved-Code-Viewer.md): In the Code Viewer, show a tabbed view for agents that have sub-agents.
-  - **Effort Assessment: FEATURE**
-  - This feature enhances the existing Code Viewer.
-  - **Backend:** Requires a new API endpoint to get the code for an agent and its sub-agents. This will involve identifying sub-agents (e.g., by looking for a `sub_agents` directory) and reading their code.
-  - **Frontend:** The `CodeViewerModal.tsx` component will be updated to fetch the sub-agent code and display it in a tabbed interface.
 - [Container Mode](./epic/Container-Mode.md)
   - **Effort Assessment: EPIC**
   - This represents a major architectural addition, creating a parallel agent execution engine using Docker.
@@ -58,14 +30,6 @@ This document is a running list of ideas for future enhancements to the Agent Ga
     - **API Changes:** The `/run_turn` endpoint in `main.py` and the `AgentRunner` class need to be updated to accept and pass `session_id` and history.
     - **Persistence:** To make sessions useful, a persistence layer (e.g., a simple file-based or DB store) would be needed to save, load, and delete session history.
     - **Frontend UI:** A UI for creating, selecting, saving, and deleting sessions for an agent would need to be built. The underlying frontend services for this are already largely in place.
-- [Artifact service support](./feature/Artifact-service-support.md)
-  - **Effort Assessment: FEATURE**
-  - This feature is about integrating the ADK's built-in Artifact Service, not building one from scratch. The work is primarily plumbing and integration.
-  - **Key tasks include:**
-    - **ADK Integration:** The `agent_host.py` script must be updated to instantiate an `ArtifactService` (e.g., `InMemoryArtifactService`) and pass it to the ADK `Runner`.
-    - **Agent-level API:** The agent's internal web server (in `agent_host.py`) needs a new endpoint to retrieve artifacts by name from the `ArtifactService`.
-    - **Backend Proxy:** The main backend (`main.py`) needs a new endpoint that proxies artifact download requests from the frontend to the correct agent subprocess.
-    - **Frontend:** The chat UI needs to be updated to recognize `artifact://` URIs in agent responses and render them as clickable download links pointing to the new backend proxy endpoint.
 - Evaluation support
   - **Effort Assessment: EPIC**
   - This feature is about building a web UI and backend system to manage the ADK's command-line evaluation tool (`adk evaluate`). While the core evaluation logic is provided by the ADK, the web integration is a large project.
@@ -74,17 +38,6 @@ This document is a running list of ideas for future enhancements to the Agent Ga
     - **File Management:** The backend must handle the storage and management of evaluation dataset files (e.g., YAML/JSON) uploaded by the user.
     - **API and Data Handling:** A new set of API endpoints is required to manage datasets, trigger evaluation runs, and retrieve the resulting reports. The backend will also need to parse the report files generated by the ADK tool.
     - **New Frontend UI:** This requires a completely new, dedicated section in the UI for managing evaluation datasets and viewing the complex, structured data from evaluation reports.
-- [Backend logging levels](./feature/Backend-logging-levels.md)
-  - **Effort Assessment: FEATURE**
-  - This is a standard good-practice feature for any backend application.
-  - **Implementation:** Involves replacing all `print()` statements in the backend Python code with the standard `logging` module. The logging level would be made configurable via an environment variable or a command-line argument to the Uvicorn server. This is a straightforward task with no architectural impact.
-- [Event Viewer](./feature/Event-Viewer.md)
-  - **Effort Assessment: FEATURE**
-  - This feature is about correctly capturing and displaying the rich, structured event stream from the ADK. The project already has a minimal `EventStreamingPlugin` that forwards a subset of events, so the core plumbing exists.
-  - **Key tasks include:**
-    - **Backend Plugin Expansion:** The existing `backend/event_streaming_plugin.py` needs to be expanded to implement a comprehensive set of `BasePlugin` hooks (e.g., `on_start_turn`, `on_end_llm`, `on_error`) to capture the full agent lifecycle, not just tool calls.
-    - **Frontend State Management:** The `useManagementSocket` hook must be modified to persistently store the full stream of incoming events for the selected agent, rather than clearing them after processing.
-    - **New Frontend Component:** A new `EventViewer.tsx` component needs to be built. This component should be designed to render the hierarchical event data in a user-friendly way, such as a collapsible tree view, and would likely be added as a new tab in the `InfoPane`.
 - [Agent Deployment Support](./epic/Agent-Deployment-Support.md)
   - **Effort Assessment: EPIC**
   - This feature expands the gallery from a local development tool to a cloud deployment portal.
@@ -96,12 +49,6 @@ This document is a running list of ideas for future enhancements to the Agent Ga
     - **New Frontend UI:** A substantial new UI is needed for configuring deployment parameters (Project ID, region, etc.), triggering the deployment, and viewing the live logs and final status.
     - Cloud Run
     - Agent Engine
-- [Connect to running agent(?)](./feature/Connect-to-running-agent.md)
-  - **Effort Assessment: FEATURE**
-  - This feature would allow the gallery to act as a client for agents that are running externally (i.e., not started by the gallery).
-  - **Implementation:**
-    - **Backend:** Requires a new API endpoint to register an external agent by its URL. The `/run_turn` logic would need to be updated to proxy requests to this URL for external agents, instead of using the local `AgentRunner`.
-    - **Frontend:** Requires a new UI form for users to submit the name and URL of an external agent. The agent list UI would need to be adapted to display these "unmanaged" agents, disabling features that don't apply (like start/stop, logs, and event viewing).
 - [Live agent support](./epic/Live-agent-support.md)
   - **Effort Assessment: EPIC**
   - This feature involves integrating real-time, streaming voice/video agents (Gemini Live Agents), which operate on a completely different paradigm than the current text-based, turn-based ADK agents.
@@ -111,6 +58,64 @@ This document is a running list of ideas for future enhancements to the Agent Ga
     - **New Frontend UI:** A completely new `LiveChatInterface.tsx` component is needed to handle microphone input, real-time audio playback, and potentially video streams. The existing text-based chat UI cannot be reused.
     - **Browser Media APIs:** The frontend will need to use low-level browser APIs (`getUserMedia`, etc.) to capture and process audio/video.
     - **New Communication Protocol:** The application's communication layer would need to be enhanced to support real-time streaming protocols (e.g., WebRTC or a specialized WebSocket setup) alongside the existing notification-based WebSocket.
+
+## Features
+
+- ~~[Grouped Agent List](./feature/grouped-agent-list.md)~~: Display agents in collapsible groups based on the `agent_roots` defined in `gallery.config.yaml`.
+  - **Status: Implemented & Merged**
+  - **Effort Assessment: FEATURE**
+  - This is a frontend-only enhancement to improve the organization and presentation of agents in the sidebar.
+  - **Backend:** No backend changes are required.
+  - **Frontend:** Requires fetching and parsing `gallery.config.yaml` to get the agent groups. The `AgentSidebar.tsx` component will be updated to render agents in collapsible sections. State management in `useManagementSocket.ts` will be adjusted to handle the grouped data structure.
+- ~~[Warn on Browser Refresh](./feature/Warn-on-Refresh.md)~~: Warn user on browser refresh that sessions will be reset.
+  - **Status: Implemented & Merged**
+  - **Effort Assessment: FEATURE**
+  - This is a straightforward, frontend-only feature.
+  - **Backend:** No backend changes are required as session state is managed on the client.
+  - **Frontend:** Requires adding a `beforeunload` event listener in a top-level component. The listener will check if any active sessions exist and, if so, trigger the browser's native confirmation prompt.
+- ~~[Markdown Support](./feature/Markdown-Support.md)~~: Display markdown-formatted responses from the model in the ChatInterface.
+  - **Status: Implemented & Merged**
+  - **Effort Assessment: FEATURE**
+  - This is a well-defined feature primarily focused on the frontend.
+  - **Backend:** No backend changes are required. Agent responses are passed through as-is.
+  - **Frontend:** Requires integrating a Markdown rendering library (like `react-markdown`) into the `ChatInterface.tsx` component. The component that displays agent messages will need to be updated to parse and render the markdown content instead of displaying it as plain text. Minimal state management changes are needed.
+- ~~[Agent Code View](./feature/Agent-Code-View.md)~~: click a code icon in an agent card to see the code in a popup or viewer pane
+  - **Status: Implemented & Merged**
+  - **Effort Assessment: FEATURE**
+  - This is a well-defined feature with a clear implementation path.
+  - **Backend:** Requires a new API endpoint (e.g., `/agents/{agent_id}/code`) that reads and returns the content of the agent's primary Python file. The backend already has logic for locating agent files.
+  - **Frontend:** Requires adding a new icon/button to the `AgentListItem` component, a new function to fetch the code from the backend, and a new modal component to display the code. No major state management or architectural changes are needed.
+- ~~[Improved Code Viewer](./feature/Improved-Code-Viewer.md)~~: In the Code Viewer, show a tabbed view for agents that have sub-agents.
+  - **Status: Implemented & Merged**
+  - **Effort Assessment: FEATURE**
+  - This feature enhances the existing Code Viewer.
+  - **Backend:** Requires a new API endpoint to get the code for an agent and its sub-agents. This will involve identifying sub-agents (e.g., by looking for a `sub_agents` directory) and reading their code.
+  - **Frontend:** The `CodeViewerModal.tsx` component will be updated to fetch the sub-agent code and display it in a tabbed interface.
+- [Artifact service support](./feature/Artifact-service-support.md)
+  - **Effort Assessment: FEATURE**
+  - This feature is about integrating the ADK's built-in Artifact Service, not building one from scratch. The work is primarily plumbing and integration.
+  - **Key tasks include:**
+    - **ADK Integration:** The `agent_host.py` script must be updated to instantiate an `ArtifactService` (e.g., `InMemoryArtifactService`) and pass it to the ADK `Runner`.
+    - **Agent-level API:** The agent's internal web server (in `agent_host.py`) needs a new endpoint to retrieve artifacts by name from the `ArtifactService`.
+    - **Backend Proxy:** The main backend (`main.py`) needs a new endpoint that proxies artifact download requests from the frontend to the correct agent subprocess.
+    - **Frontend:** The chat UI needs to be updated to recognize `artifact://` URIs in agent responses and render them as clickable download links pointing to the new backend proxy endpoint.
+- [Backend logging levels](./feature/Backend-logging-levels.md)
+  - **Effort Assessment: FEATURE**
+  - This is a standard good-practice feature for any backend application.
+  - **Implementation:** Involves replacing all `print()` statements in the backend Python code with the standard `logging` module. The logging level would be made configurable via an environment variable or a command-line argument to the Uvicorn server. This is a straightforward task with no architectural impact.
+- [Event Viewer](./feature/Event-Viewer.md)
+  - **Effort Assessment: FEATURE**
+  - This feature is about correctly capturing and displaying the rich, structured event stream from the ADK. The project already has a minimal `EventStreamingPlugin` that forwards a subset of events, so the core plumbing exists.
+  - **Key tasks include:**
+    - **Backend Plugin Expansion:** The existing `backend/event_streaming_plugin.py` needs to be expanded to implement a comprehensive set of `BasePlugin` hooks (e.g., `on_start_turn`, `on_end_llm`, `on_error`) to capture the full agent lifecycle, not just tool calls.
+    - **Frontend State Management:** The `useManagementSocket` hook must be modified to persistently store the full stream of incoming events for the selected agent, rather than clearing them after processing.
+    - **New Frontend Component:** A new `EventViewer.tsx` component needs to be built. This component should be designed to render the hierarchical event data in a user-friendly way, such as a collapsible tree view, and would likely be added as a new tab in the `InfoPane`.
+- [Connect to running agent(?)](./feature/Connect-to-running-agent.md)
+  - **Effort Assessment: FEATURE**
+  - This feature would allow the gallery to act as a client for agents that are running externally (i.e., not started by the gallery).
+  - **Implementation:**
+    - **Backend:** Requires a new API endpoint to register an external agent by its URL. The `/run_turn` logic would need to be updated to proxy requests to this URL for external agents, instead of using the local `AgentRunner`.
+    - **Frontend:** Requires a new UI form for users to submit the name and URL of an external agent. The agent list UI would need to be adapted to display these "unmanaged" agents, disabling features that don't apply (like start/stop, logs, and event viewing).
 - ~~[Agent-specific Configuration](./feature/Agent-Specific-Config.md)~~
   - **Status: Implemented & Merged**
   - **Effort Assessment: FEATURE**
