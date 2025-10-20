@@ -1,8 +1,8 @@
-import type { Agent, AgentCode } from '../types';
+import type { Agent, AgentCodeFile, AgentCodeComplex } from '../types';
 import { HttpError } from '../types';
 import { API_BASE_URL } from '../config';
 
-export const getAgentCode = async (agentId: string): Promise<AgentCode> => {
+export const getAgentCode = async (agentId: string): Promise<AgentCodeFile> => {
   try {
     const encodedAgentId = encodeURIComponent(agentId);
     const response = await fetch(`${API_BASE_URL}/agents/${encodedAgentId}/code`);
@@ -10,9 +10,24 @@ export const getAgentCode = async (agentId: string): Promise<AgentCode> => {
       throw new HttpError(`HTTP error! status: ${response.status}`, response.status);
     }
     const data = await response.json();
-    return data as AgentCode;
+    return data as AgentCodeFile;
   } catch (error) {
     console.error(`Error fetching code for agent ${agentId}:`, error);
+    throw error;
+  }
+};
+
+export const getAgentCodeWithSubagents = async (agentId: string): Promise<AgentCodeComplex> => {
+  try {
+    const encodedAgentId = encodeURIComponent(agentId);
+    const response = await fetch(`${API_BASE_URL}/agents/${encodedAgentId}/code_with_subagents`);
+    if (!response.ok) {
+      throw new HttpError(`HTTP error! status: ${response.status}`, response.status);
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error(`Error fetching code for agent ${agentId} with subagents:`, error);
     throw error;
   }
 };

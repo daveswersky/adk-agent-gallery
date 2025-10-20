@@ -100,34 +100,38 @@ async def get_agents():
     return agents
 
 
+def _get_agent_py_path(agent_path: str) -> str:
+    """Helper function to find the main agent.py file, checking common structures."""
+    base_name = os.path.basename(agent_path)
+    module_name = base_name.replace('-', '_')
+    
+    possible_paths = [
+        os.path.join(agent_path, module_name, "agent.py"),
+        os.path.join(agent_path, base_name, "agent.py"),
+        os.path.join(agent_path, "agent.py")
+    ]
+
+    for path in possible_paths:
+        if os.path.exists(path):
+            return path
+            
+    raise HTTPException(status_code=404, detail=f"Primary agent file not found for '{base_name}'.")
+
+
 @app.get("/agents/{agent_name:path}/code")
 async def get_agent_code(agent_name: str):
     """Finds and returns the code for a specified agent."""
     agent_path = os.path.abspath(agent_name)
+
+    # Security: Ensure the resolved path is within one of the configured agent_roots
+    agent_root_paths = [os.path.abspath(root['path']) for root in CONFIG.get('agent_roots', [])]
+    if not any(agent_path.startswith(root_path) for root_path in agent_root_paths):
+        raise HTTPException(status_code=403, detail="Access to this agent is forbidden.")
+
     if not os.path.isdir(agent_path):
         raise HTTPException(status_code=404, detail=f"Agent directory '{agent_name}' not found.")
 
-    # Normalize the agent name for module lookup (e.g., 'my-agent' -> 'my_agent')
-    base_name = os.path.basename(agent_name)
-    module_name = base_name.replace('-', '_')
-    
-    # Check for nested structure first (e.g., my-agent/my_agent/agent.py)
-    nested_agent_py_path = os.path.join(agent_path, module_name, "agent.py")
-    # Check for flat structure (e.g., my-agent/agent.py)
-    flat_agent_py_path = os.path.join(agent_path, "agent.py")
-    # Check for alternative nested structure (e.g., my-agent/my-agent/agent.py)
-    alt_nested_agent_py_path = os.path.join(agent_path, base_name, "agent.py")
-
-
-    agent_py_path = None
-    if os.path.exists(nested_agent_py_path):
-        agent_py_path = nested_agent_py_path
-    elif os.path.exists(alt_nested_agent_py_path):
-        agent_py_path = alt_nested_agent_py_path
-    elif os.path.exists(flat_agent_py_path):
-        agent_py_path = flat_agent_py_path
-    else:
-        raise HTTPException(status_code=404, detail=f"Primary agent file not found for '{agent_name}'.")
+    agent_py_path = _get_agent_py_path(agent_path)
 
     try:
         with open(agent_py_path, "r") as f:
@@ -135,6 +139,64 @@ async def get_agent_code(agent_name: str):
         return {"filename": os.path.basename(agent_py_path), "content": content}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error reading agent file: {e}")
+
+
+@app.get("/agents/{agent_name:path}/code_with_subagents")
+async def get_agent_code_with_subagents(agent_name: str):
+    """Finds and returns the code for a specified agent and its sub-agents."""
+    agent_path = os.path.abspath(agent_name)
+
+    # Security: Ensure the resolved path is within one of the configured agent_roots
+    agent_root_paths = [os.path.abspath(root['path']) for root in CONFIG.get('agent_roots', [])]
+    if not any(agent_path.startswith(root_path) for root_path in agent_root_paths):
+        raise HTTPException(status_code=403, detail="Access to this agent is forbidden.")
+        
+    if not os.path.isdir(agent_path):
+        raise HTTPException(status_code=404, detail=f"Agent directory '{agent_name}' not found.")
+
+    base_name = os.path.basename(agent_name)
+    module_name = base_name.replace('-', '_')
+
+    agent_py_path = _get_agent_py_path(agent_path)
+
+    try:
+        with open(agent_py_path, "r") as f:
+            main_agent_code = f.read()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading main agent file: {e}")
+
+    response = {
+        "main_agent": {"name": base_name, "code": main_agent_code},
+        "sub_agents": []
+    }
+
+    # Find sub-agents
+    # The convention is that the sub-agents are in a directory named after the
+    # main agent's module name.
+    sub_agents_dir = os.path.join(agent_path, module_name, "sub_agents")
+    if not os.path.isdir(sub_agents_dir):
+        # Try the other convention
+        sub_agents_dir = os.path.join(agent_path, base_name, "sub_agents")
+
+
+    if os.path.isdir(sub_agents_dir):
+        for sub_agent_name in os.listdir(sub_agents_dir):
+            sub_agent_path = os.path.join(sub_agents_dir, sub_agent_name)
+            if os.path.isdir(sub_agent_path):
+                sub_agent_py_path = os.path.join(sub_agent_path, "agent.py")
+                if os.path.exists(sub_agent_py_path):
+                    try:
+                        with open(sub_agent_py_path, "r") as f:
+                            sub_agent_code = f.read()
+                        response["sub_agents"].append({
+                            "name": sub_agent_name,
+                            "code": sub_agent_code
+                        })
+                    except Exception as e:
+                        # Log the error but continue, so one broken sub-agent doesn't fail the whole request
+                        print(f"Error reading sub-agent file {sub_agent_py_path}: {e}")
+
+    return response
 
 @app.post("/run_turn")
 async def run_turn(request: TurnRequest):

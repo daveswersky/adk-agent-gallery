@@ -75,35 +75,35 @@ async def test_start_and_stop_agent(websocket_connection: websockets.ClientConne
     """Tests the full lifecycle of starting and stopping a single agent."""
     websocket = websocket_connection
     
-    start_command = {"action": "start", "agent_name": "greeting_agent", "port": 8001}
+    start_command = {"action": "start", "agent_name": "agents/greeting_agent", "port": 8001}
     await websocket.send(json.dumps(start_command))
 
     running_message = await get_message_containing(websocket, '"status": "running"', timeout=30)
     assert running_message is not None
-    assert running_message["agent"] == "greeting_agent"
+    assert running_message["agent"] == "agents/greeting_agent"
 
-    stop_command = {"action": "stop", "agent_name": "greeting_agent"}
+    stop_command = {"action": "stop", "agent_name": "agents/greeting_agent"}
     await websocket.send(json.dumps(stop_command))
 
     stopped_message = await get_message_containing(websocket, '"status": "stopped"', timeout=10)
     assert stopped_message is not None
-    assert stopped_message["agent"] == "greeting_agent"
+    assert stopped_message["agent"] == "agents/greeting_agent"
 
 @pytest.mark.asyncio
 async def test_stop_all_agents(websocket_connection: websockets.ClientConnection):
     """Tests the 'stop_all' functionality."""
     websocket = websocket_connection
 
-    await websocket.send(json.dumps({"action": "start", "agent_name": "greeting_agent", "port": 8001}))
-    await websocket.send(json.dumps({"action": "start", "agent_name": "weather_agent", "port": 8002}))
+    await websocket.send(json.dumps({"action": "start", "agent_name": "agents/greeting_agent", "port": 8001}))
+    await websocket.send(json.dumps({"action": "start", "agent_name": "agents/weather_agent", "port": 8002}))
 
     running_agents = set()
     for _ in range(2):
         msg = await get_message_containing(websocket, '"status": "running"', timeout=40)
         running_agents.add(msg["agent"])
     
-    assert "greeting_agent" in running_agents
-    assert "weather_agent" in running_agents
+    assert "agents/greeting_agent" in running_agents
+    assert "agents/weather_agent" in running_agents
 
     await websocket.send(json.dumps({"action": "stop_all"}))
 
@@ -112,5 +112,5 @@ async def test_stop_all_agents(websocket_connection: websockets.ClientConnection
         msg = await get_message_containing(websocket, '"status": "stopped"', timeout=20)
         stopped_agents.add(msg["agent"])
 
-    assert "greeting_agent" in stopped_agents
-    assert "weather_agent" in stopped_agents
+    assert "agents/greeting_agent" in stopped_agents
+    assert "agents/weather_agent" in stopped_agents

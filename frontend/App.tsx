@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import type { Agent, AgentCode } from './types';
+import type { Agent, AgentCodeComplex } from './types';
 import { AgentStatus } from './types';
 import { useManagementSocket } from './hooks/useManagementSocket';
 import { AgentSidebar } from './components/AgentSidebar';
 import { ChatInterface } from './components/ChatInterface';
 import { InfoPane } from './components/InfoPane';
-import { getAgentCode } from './services/agentService';
+import { getAgentCodeWithSubagents } from './services/agentService';
 import CodeViewerModal from './components/CodeViewerModal';
 
 // Constants for resizer constraints
@@ -15,7 +15,7 @@ const MIN_INFO_PANE_HEIGHT = 120; // px
 
 const App: React.FC = () => {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
-  const [agentCode, setAgentCode] = useState<AgentCode | null>(null);
+  const [agentCode, setAgentCode] = useState<AgentCodeComplex | null>(null);
   const [isCodeViewerOpen, setIsCodeViewerOpen] = useState(false);
 
   const handleAgentStarted = useCallback((agent: Agent) => {
@@ -53,7 +53,7 @@ const App: React.FC = () => {
 
   const handleViewCode = async (agentId: string) => {
     try {
-      const code = await getAgentCode(agentId);
+      const code = await getAgentCodeWithSubagents(agentId);
       setAgentCode(code);
       setIsCodeViewerOpen(true);
     } catch (error) {

@@ -36,6 +36,11 @@ This document is a running list of ideas for future enhancements to the Agent Ga
   - This is a well-defined feature with a clear implementation path.
   - **Backend:** Requires a new API endpoint (e.g., `/agents/{agent_id}/code`) that reads and returns the content of the agent's primary Python file. The backend already has logic for locating agent files.
   - **Frontend:** Requires adding a new icon/button to the `AgentListItem` component, a new function to fetch the code from the backend, and a new modal component to display the code. No major state management or architectural changes are needed.
+- [Improved Code Viewer](./feature/Improved-Code-Viewer.md): In the Code Viewer, show a tabbed view for agents that have sub-agents.
+  - **Effort Assessment: FEATURE**
+  - This feature enhances the existing Code Viewer.
+  - **Backend:** Requires a new API endpoint to get the code for an agent and its sub-agents. This will involve identifying sub-agents (e.g., by looking for a `sub_agents` directory) and reading their code.
+  - **Frontend:** The `CodeViewerModal.tsx` component will be updated to fetch the sub-agent code and display it in a tabbed interface.
 - [Container Mode](./epic/Container-Mode.md)
   - **Effort Assessment: EPIC**
   - This represents a major architectural addition, creating a parallel agent execution engine using Docker.

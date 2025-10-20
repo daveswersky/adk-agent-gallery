@@ -1,6 +1,6 @@
 
 from google.adk.agents import LlmAgent
-from ..tools.impact_calculator import calculate_impact
+from ...tools.impact_calculator import calculate_impact
 
 MODEL = "gemini-2.5-flash"
 
