@@ -2,8 +2,8 @@
 
 from google.adk.agents import LlmAgent
 from google.adk.tools.agent_tool import AgentTool
-from .sub_agents.impact_agent import root_agent as impact_agent
-from .sub_agents.research_agent import root_agent as research_agent
+from .sub_agents.impact_agent.agent import root_agent as impact_agent
+from .sub_agents.research_agent.agent import root_agent as research_agent
 
 root_agent = LlmAgent(
     name="RapidResolveAgent",
