@@ -4,6 +4,7 @@ import os
 import re
 import yaml
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict
 from pydantic import BaseModel
@@ -11,12 +12,14 @@ import multiprocessing as mp
 from backend.connection_manager import manager, running_processes, starting_agents, startup_lock
 from backend.agent_runner import AgentRunner
 
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+
 app = FastAPI()
 
 # Load gallery configuration
 CONFIG = {}
 try:
-    with open("gallery.config.yaml", "r") as f:
+    with open(os.path.join(PROJECT_ROOT, "gallery.config.yaml"), "r") as f:
         CONFIG = yaml.safe_load(f)
 except FileNotFoundError:
     print("gallery.config.yaml not found. Using default settings.")
@@ -60,7 +63,7 @@ async def get_agents():
         return []
 
     for root in agent_roots:
-        agents_dir = os.path.abspath(root.get("path"))
+        agents_dir = os.path.join(PROJECT_ROOT, root.get("path"))
         exclusions = root.get("exclude", [])
         
         if not os.path.exists(agents_dir):
@@ -121,11 +124,11 @@ def _get_agent_py_path(agent_path: str) -> str:
 @app.get("/agents/{agent_name:path}/code")
 async def get_agent_code(agent_name: str):
     """Finds and returns the code for a specified agent."""
-    agent_path = os.path.abspath(agent_name)
+    agent_path = os.path.join(PROJECT_ROOT, agent_name)
 
     # Security: Ensure the resolved path is within one of the configured agent_roots
-    agent_root_paths = [os.path.abspath(root['path']) for root in CONFIG.get('agent_roots', [])]
-    if not any(agent_path.startswith(root_path) for root_path in agent_root_paths):
+    agent_root_paths = [os.path.join(PROJECT_ROOT, root['path']) for root in CONFIG.get('agent_roots', [])]
+    if not any(os.path.abspath(agent_path).startswith(root_path) for root_path in agent_root_paths):
         raise HTTPException(status_code=403, detail="Access to this agent is forbidden.")
 
     if not os.path.isdir(agent_path):
@@ -144,11 +147,11 @@ async def get_agent_code(agent_name: str):
 @app.get("/agents/{agent_name:path}/code_with_subagents")
 async def get_agent_code_with_subagents(agent_name: str):
     """Finds and returns the code for a specified agent and its sub-agents."""
-    agent_path = os.path.abspath(agent_name)
+    agent_path = os.path.join(PROJECT_ROOT, agent_name)
 
     # Security: Ensure the resolved path is within one of the configured agent_roots
-    agent_root_paths = [os.path.abspath(root['path']) for root in CONFIG.get('agent_roots', [])]
-    if not any(agent_path.startswith(root_path) for root_path in agent_root_paths):
+    agent_root_paths = [os.path.join(PROJECT_ROOT, root['path']) for root in CONFIG.get('agent_roots', [])]
+    if not any(os.path.abspath(agent_path).startswith(root_path) for root_path in agent_root_paths):
         raise HTTPException(status_code=403, detail="Access to this agent is forbidden.")
         
     if not os.path.isdir(agent_path):
@@ -198,6 +201,59 @@ async def get_agent_code_with_subagents(agent_name: str):
 
     return response
 
+
+@app.get("/agents/{agent_name:path}/readme")
+async def get_agent_readme(agent_name: str):
+    """Finds and returns the README.md for a specified agent."""
+    agent_path = os.path.join(PROJECT_ROOT, agent_name)
+
+    # Security: Ensure the resolved path is within one of the configured agent_roots
+    agent_root_paths = [os.path.join(PROJECT_ROOT, root['path']) for root in CONFIG.get('agent_roots', [])]
+    if not any(os.path.abspath(agent_path).startswith(root_path) for root_path in agent_root_paths):
+        raise HTTPException(status_code=403, detail="Access to this agent is forbidden.")
+
+    if not os.path.isdir(agent_path):
+        raise HTTPException(status_code=404, detail=f"Agent directory '{agent_name}' not found.")
+
+    readme_path = os.path.join(agent_path, "README.md")
+
+    if not os.path.exists(readme_path):
+        raise HTTPException(status_code=404, detail=f"README.md not found for agent '{agent_name}'.")
+
+    try:
+        with open(readme_path, "r") as f:
+            content = f.read()
+        return {"content": content}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading README.md file: {e}")
+
+
+@app.get("/agents/{agent_name:path}/static/{file_path:path}")
+async def get_agent_static_file(agent_name: str, file_path: str):
+    """Serves a static file from within an agent's directory."""
+    agent_path = os.path.join(PROJECT_ROOT, agent_name)
+    
+    # Security: Ensure the agent path is within one of the configured agent_roots
+    agent_root_paths = [os.path.join(PROJECT_ROOT, root['path']) for root in CONFIG.get('agent_roots', [])]
+    if not any(os.path.abspath(agent_path).startswith(root_path) for root_path in agent_root_paths):
+        raise HTTPException(status_code=403, detail="Access to this agent is forbidden.")
+
+    if not os.path.isdir(agent_path):
+        raise HTTPException(status_code=404, detail=f"Agent directory '{agent_name}' not found.")
+
+    # Security: Prevent directory traversal attacks.
+    # Normalize the paths and ensure the requested file is within the agent's directory.
+    static_file_path = os.path.normpath(os.path.join(agent_path, file_path))
+    if not static_file_path.startswith(os.path.normpath(agent_path)):
+        print(f"WARNING: Directory traversal attempt detected: {file_path}")
+        raise HTTPException(status_code=403, detail="File path is outside the agent directory.")
+
+    if not os.path.isfile(static_file_path):
+        raise HTTPException(status_code=404, detail=f"Static file not found: {file_path}")
+
+    return FileResponse(static_file_path)
+
+
 @app.post("/run_turn")
 async def run_turn(request: TurnRequest):
     """Runs a single turn of the agent."""
@@ -228,7 +284,7 @@ async def start_agent_process(agent_path: str, port: int):
 
     runner = None
     try:
-        agent_abs_path = os.path.abspath(agent_path)
+        agent_abs_path = os.path.join(PROJECT_ROOT, agent_path)
         if not os.path.isdir(agent_abs_path):
             raise FileNotFoundError(f"Agent directory '{agent_path}' not found.")
 
