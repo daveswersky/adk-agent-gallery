@@ -8,6 +8,7 @@ import { sessionManager } from '../services/sessionManager';
 import { SendIcon, UserIcon, BotIcon, SpinnerIcon, TransferIcon, FileUploadIcon, ToolIcon, BookOpenIcon } from './icons';
 import { AgentStatus } from '../types';
 
+import { causeError } from '../services/agentService';
 import { API_BASE_URL } from '../config';
 
 interface ChatInterfaceProps {
