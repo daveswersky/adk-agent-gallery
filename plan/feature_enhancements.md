@@ -91,6 +91,14 @@ This document is a running list of ideas for future enhancements to the Agent Ga
   - This feature enhances the existing Code Viewer.
   - **Backend:** Requires a new API endpoint to get the code for an agent and its sub-agents. This will involve identifying sub-agents (e.g., by looking for a `sub_agents` directory) and reading their code.
   - **Frontend:** The `CodeViewerModal.tsx` component will be updated to fetch the sub-agent code and display it in a tabbed interface.
+- [README display for non-running agents](./feature/README-display.md): Display the README.md file for a selected agent in the ChatInterface pane when the agent is not running.
+  - **Effort Assessment: FEATURE**
+  - This is a quality-of-life feature that requires coordinated changes between the backend and frontend.
+  - **Backend:** Requires a new API endpoint (e.g., `/agents/{agent_id}/readme`) that finds an agent's `README.md` file and returns its content.
+  - **Frontend:** Requires several changes:
+    - The `AgentSidebar.tsx` component must be modified to allow selecting agents that are not currently running.
+    - State management in `App.tsx` must be updated to fetch and store the README content when a non-running agent is selected.
+    - The `ChatInterface.tsx` component needs to be updated to display the fetched Markdown content when available, instead of the chat view.
 - [Artifact service support](./feature/Artifact-service-support.md)
   - **Effort Assessment: FEATURE**
   - This feature is about integrating the ADK's built-in Artifact Service, not building one from scratch. The work is primarily plumbing and integration.

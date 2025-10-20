@@ -17,6 +17,7 @@
     "react-flip-toolkit": "^7.2.4",
     "react-markdown": "^10.1.0",
     "react-syntax-highlighter": "^15.6.6",
+    "remark-gfm": "^4.0.1",
     "uuid": "^13.0.0"
   },
   "devDependencies": {

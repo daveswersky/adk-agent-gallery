@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { Agent, ChatMessage, AgentEvent } from '../types';
 import Session, { LoadingStatus } from '../services/sessionService';
 import { sessionManager } from '../services/sessionManager';
-import { SendIcon, UserIcon, BotIcon, SpinnerIcon, TransferIcon, FileUploadIcon, ToolIcon } from './icons';
+import { SendIcon, UserIcon, BotIcon, SpinnerIcon, TransferIcon, FileUploadIcon, ToolIcon, BookOpenIcon } from './icons';
+import { AgentStatus } from '../types';
 
 import { causeError } from '../services/agentService';
 
@@ -11,6 +13,8 @@ interface ChatInterfaceProps {
   agent: Agent | null;
   agentEvents: AgentEvent[];
   clearAgentEvents: () => void;
+  readmeContent: string | null;
+  isReadmeLoading: boolean;
 }
 
 const ChatBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
@@ -40,7 +44,7 @@ const ChatBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
         <div className={`flex items-start gap-4 ${isUser ? 'justify-end' : 'justify-start'}`}>
             {!isUser && <div className={`flex-shrink-0 w-8 h-8 rounded-full ${getIconBgColor()} flex items-center justify-center`}>{getIcon()}</div>}
             <div className={`max-w-3xl p-4 rounded-lg shadow-md ${getBubbleColor()}`}>
-                {isModel ? <div className="markdown-content"><ReactMarkdown>{message.content}</ReactMarkdown></div> : <p className="whitespace-pre-wrap">{message.content}</p>}
+                {isModel ? <div className="markdown-content"><ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown></div> : <p className="whitespace-pre-wrap">{message.content}</p>}
             </div>
             {isUser && <div className={`flex-shrink-0 w-8 h-8 rounded-full ${getIconBgColor()} flex items-center justify-center`}>{getIcon()}</div>}
         </div>
@@ -60,7 +64,7 @@ const LoadingIndicator: React.FC<{ status: LoadingStatus }> = ({ status }) => {
     );
 };
 
-export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, agentEvents, clearAgentEvents }) => {
+export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, agentEvents, clearAgentEvents, readmeContent, isReadmeLoading }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loadingStatus, setLoadingStatus] = useState<LoadingStatus | null>(null);
@@ -72,7 +76,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, agentEvents
   
   useEffect(() => {
     const switchSession = async () => {
-        if (agent) {
+        // Only initialize a session if the agent is actually running
+        if (agent && agent.status === AgentStatus.RUNNING) {
             setLoadingStatus({ type: 'thinking', message: 'Initializing session...' });
             try {
                 const session = await sessionManager.getSession(agent.id);
@@ -86,6 +91,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, agentEvents
                 setLoadingStatus(null);
             }
         } else {
+            // If no agent is running, or we are in README view, clear session state.
             setCurrentSession(null);
             setMessages([]);
         }
@@ -137,7 +143,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, agentEvents
             <div className="text-center">
                 <BotIcon className="w-16 h-16 mx-auto mb-4 text-adk-dark-3" />
                 <h2 className="text-xl font-semibold text-adk-text">Welcome to the ADK Agent Gallery</h2>
-                <p>Select a running agent from the sidebar to begin a conversation.</p>
+                <p>Select an agent from the sidebar to view its README or start a conversation.</p>
             </div>
         </div>
     );
@@ -208,11 +214,56 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, agentEvents
     }
   };
 
+  const renderStatus = () => {
+    switch (agent.status) {
+        case AgentStatus.RUNNING:
+            return <><span className="text-status-running font-semibold">Running</span> at {agent.url}</>;
+        case AgentStatus.STARTING:
+            return <span className="text-status-starting font-semibold">Starting...</span>;
+        case AgentStatus.STOPPING:
+            return <span className="text-status-stopping font-semibold">Stopping...</span>;
+        case AgentStatus.STOPPED:
+            return <span className="text-status-stopped font-semibold">Stopped</span>;
+        case AgentStatus.ERROR:
+            return <span className="text-status-error font-semibold">Error</span>;
+        default:
+            return <span className="text-adk-text-secondary font-semibold">Unknown</span>;
+    }
+  };
+
+  // If the agent isn't running, show the README view.
+  if (agent.status !== AgentStatus.RUNNING) {
+    return (
+      <div className="h-full flex flex-col bg-adk-dark">
+        <header className="flex-shrink-0 p-4 border-b border-adk-dark-3">
+          <h1 className="text-xl font-bold">{agent.name}</h1>
+          <p className="text-sm text-adk-text-secondary">Status: {renderStatus()}</p>
+        </header>
+        <main className="flex-1 overflow-y-auto p-6">
+          {isReadmeLoading ? (
+            <div className="flex items-center justify-center h-full text-adk-text-secondary">
+              <SpinnerIcon className="w-8 h-8 animate-spin mr-4" />
+              <span>Loading README...</span>
+            </div>
+          ) : (
+            <div className="markdown-content">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{readmeContent || 'No README content available.'}</ReactMarkdown>
+            </div>
+          )}
+        </main>
+        <footer className="flex-shrink-0 p-4 border-t border-adk-dark-3 text-center text-sm text-adk-text-secondary">
+          Start this agent to begin a conversation.
+        </footer>
+      </div>
+    );
+  }
+
+  // Otherwise, show the Chat Interface.
   return (
     <div className="h-full flex flex-col bg-adk-dark">
       <header className="flex-shrink-0 p-4 border-b border-adk-dark-3">
         <h1 className="text-xl font-bold">{agent.name}</h1>
-        <p className="text-sm text-adk-text-secondary">Status: <span className="text-status-running font-semibold">Running</span> at {agent.url}</p>
+        <p className="text-sm text-adk-text-secondary">Status: {renderStatus()}</p>
       </header>
       
       <main ref={chatContainerRef} data-testid="chat-history" className="flex-1 overflow-y-auto p-6 space-y-6">
