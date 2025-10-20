@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2025-10-19
+
+### Added
+
+- Grouped agent list in the sidebar based on `gallery.config.yaml`.
+- A dynamic "Running Agents" group that appears when agents are active.
+- A confirmation warning when the user attempts to refresh the browser with active agents.
+
+### Fixed
+
+- Agent group ordering now respects the order defined in the configuration file.
+
 ## [0.10.0] - 2025-10-15
 
 ### Added
