@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import type { Agent, AgentCode } from './types';
+import type { Agent, AgentCodeComplex } from './types';
 import { AgentStatus } from './types';
 import { useManagementSocket } from './hooks/useManagementSocket';
 import { AgentSidebar } from './components/AgentSidebar';
 import { ChatInterface } from './components/ChatInterface';
 import { InfoPane } from './components/InfoPane';
-import { getAgentCode } from './services/agentService';
+import { getAgentCodeWithSubagents, getAgentReadme } from './services/agentService';
 import CodeViewerModal from './components/CodeViewerModal';
+import { HttpError } from './types';
 
 // Constants for resizer constraints
 const MIN_SIDEBAR_WIDTH = 280; // px
@@ -15,12 +16,19 @@ const MIN_INFO_PANE_HEIGHT = 120; // px
 
 const App: React.FC = () => {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
-  const [agentCode, setAgentCode] = useState<AgentCode | null>(null);
+  const [agentCode, setAgentCode] = useState<AgentCodeComplex | null>(null);
   const [isCodeViewerOpen, setIsCodeViewerOpen] = useState(false);
+  const [readmeContent, setReadmeContent] = useState<string | null>(null);
+  const [isReadmeLoading, setIsReadmeLoading] = useState<boolean>(false);
 
   const handleAgentStarted = useCallback((agent: Agent) => {
+    // If the user had a non-running agent selected to view its README,
+    // and then started it, we should switch to the active chat view.
+    if (selectedAgent?.id === agent.id) {
+      setReadmeContent(null);
+    }
     setSelectedAgent(agent);
-  }, []);
+  }, [selectedAgent]);
 
   const { agents, agentGroups, logs, isConnected, agentEvents, clearAgentEvents, startAgent, stopAgent, stopAllAgents } = useManagementSocket({ onAgentStarted: handleAgentStarted });
 
@@ -30,30 +38,59 @@ const App: React.FC = () => {
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [isResizingInfoPane, setIsResizingInfoPane] = useState(false);
 
-  // Effect to automatically deselect an agent if its status is no longer 'RUNNING'
+  // Effect to automatically deselect an agent if its status changes from RUNNING
+  // or if the selected agent is stopped.
   useEffect(() => {
     if (selectedAgent) {
       const currentAgentState = agents.find(a => a.id === selectedAgent.id);
-      if (!currentAgentState || currentAgentState.status !== AgentStatus.RUNNING) {
+      // If the agent is no longer in the list or was running and now isn't
+      if (!currentAgentState || (selectedAgent.status === AgentStatus.RUNNING && currentAgentState.status !== AgentStatus.RUNNING)) {
         setSelectedAgent(null);
+        setReadmeContent(null);
+      } else if (currentAgentState.status === AgentStatus.RUNNING) {
+        // If the agent is running, ensure we have the latest info (like URL)
+        // and clear any README content.
+        setSelectedAgent(currentAgentState);
+        setReadmeContent(null);
       } else {
-        // Update selected agent with latest info (like URL)
+        // If the agent is not running, just update its state (e.g., from STOPPED to STARTING)
         setSelectedAgent(currentAgentState);
       }
     }
   }, [agents, selectedAgent]);
 
 
-  const handleSelectAgent = (agent: Agent) => {
-    if (agent.status === AgentStatus.RUNNING) {
-      setSelectedAgent(agent);
+  const handleSelectAgent = async (agent: Agent) => {
+    // Always set the selected agent
+    setSelectedAgent(agent);
+
+    // If the agent is not running, try to fetch its README
+    if (agent.status !== AgentStatus.RUNNING) {
+      setIsReadmeLoading(true);
+      setReadmeContent(null);
+      try {
+        const content = await getAgentReadme(agent.id);
+        setReadmeContent(content);
+      } catch (error) {
+        if (error instanceof HttpError && error.status === 404) {
+          setReadmeContent("No `README.md` found for this agent.");
+        } else {
+          setReadmeContent("An error occurred while fetching the README.");
+          console.error(error);
+        }
+      } finally {
+        setIsReadmeLoading(false);
+      }
+    } else {
+      // If the agent is running, clear any existing README content
+      setReadmeContent(null);
     }
   };
 
 
   const handleViewCode = async (agentId: string) => {
     try {
-      const code = await getAgentCode(agentId);
+      const code = await getAgentCodeWithSubagents(agentId);
       setAgentCode(code);
       setIsCodeViewerOpen(true);
     } catch (error) {
@@ -171,6 +208,8 @@ const App: React.FC = () => {
             agent={selectedAgent}
             agentEvents={agentEvents[selectedAgent?.id || ''] || []}
             clearAgentEvents={() => clearAgentEvents(selectedAgent?.id || '')}
+            readmeContent={readmeContent}
+            isReadmeLoading={isReadmeLoading}
           />
         </div>
 
@@ -181,7 +220,6 @@ const App: React.FC = () => {
           role="separator"
           aria-orientation="horizontal"
         />
-
         <div style={{ height: `${infoPaneHeight}px` }} className="flex-shrink-0">
           <InfoPane logs={logs} agents={agents} selectedAgent={selectedAgent} />
         </div>

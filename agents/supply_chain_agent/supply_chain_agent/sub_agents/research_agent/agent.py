@@ -1,6 +1,6 @@
 
 from google.adk.agents import LlmAgent
-from ..tools.knowledge_retriever import research_solutions
+from ...tools.knowledge_retriever import research_solutions
 
 MODEL = "gemini-2.5-flash"
 

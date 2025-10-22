@@ -28,8 +28,8 @@ const AgentListItem: React.FC<{
   return (
     <div
       data-testid={`agent-card-${agent.id}`}
-      onClick={() => isRunning && onSelect(agent)}
-      className={`p-2 rounded-md flex items-center justify-between transition-colors duration-200 ${isActive ? 'bg-adk-accent/20' : 'hover:bg-adk-dark-3'} ${isRunning ? 'cursor-pointer' : ''}`}
+      onClick={() => onSelect(agent)}
+      className={`p-2 rounded-md flex items-center justify-between transition-colors duration-200 cursor-pointer ${isActive ? 'bg-adk-accent/20' : 'hover:bg-adk-dark-3'}`}
     >
       <span className="font-mono text-adk-text truncate">{agent.name}</span>
       <div className="flex items-center space-x-2">

@@ -1,5 +1,6 @@
 # Known Bugs
 
+- Some agents get a 404 error when opening the code view.
 - Backend server throws `AttributeError: 'dict' object has no attribute 'stop'` on reload. (RESOLVED)
 - RAG ADK sample not working
 - Viewer showing [ERROR] for regular output
