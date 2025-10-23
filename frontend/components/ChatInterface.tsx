@@ -72,6 +72,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, agentEvents
   const [loadingStatus, setLoadingStatus] = useState<LoadingStatus | null>(null);
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [processedEventsIndex, setProcessedEventsIndex] = useState(0);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -96,6 +97,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, agentEvents
             // If no agent is running, or we are in README view, clear session state.
             setCurrentSession(null);
             setMessages([]);
+            setProcessedEventsIndex(0);
         }
     };
     switchSession();
@@ -116,28 +118,35 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, agentEvents
 
   // Effect to process real-time agent events from the WebSocket
   useEffect(() => {
-    if (!currentSession) return;
+    if (!currentSession || agentEvents.length === processedEventsIndex) return;
 
-    for (const event of agentEvents) {
-      if (event.event === 'before_tool_call') {
-        const toolName = event.tool_call.name;
+    const newEvents = agentEvents.slice(processedEventsIndex);
+
+    for (const event of newEvents) {
+      const eventName = event.data?.event;
+      const eventData = event.data?.data;
+
+      if (!eventName || !eventData) {
+        console.warn("Received agent event with missing data:", event);
+        continue;
+      }
+
+      if (eventName === 'before_tool_callback') {
+        const toolName = eventData.tool_name;
         setLoadingStatus({ type: 'tool_use', message: `Using ${toolName} tool...` });
-        const toolArgs = JSON.stringify(event.tool_call.args, null, 2);
+        const toolArgs = JSON.stringify(eventData.tool_args, null, 2);
         currentSession.history.push({ role: 'tool', content: `Calling tool: ${toolName}\nArguments:\n${toolArgs}` });
         setMessages([...currentSession.history]);
-      } else if (event.event === 'after_tool_call') {
+      } else if (eventName === 'after_tool_callback') {
         setLoadingStatus({ type: 'thinking', message: 'Thinking...' });
-        const toolName = event.tool_call.name;
-        const toolResult = JSON.stringify(event.tool_result, null, 2);
+        const toolName = eventData.tool_name;
+        const toolResult = JSON.stringify(eventData.tool_result, null, 2);
         currentSession.history.push({ role: 'tool', content: `Tool ${toolName} returned:\n${toolResult}` });
         setMessages([...currentSession.history]);
       }
     }
-    // We've processed the events, clear them so they aren't re-processed
-    if (agentEvents.length > 0) {
-      clearAgentEvents();
-    }
-  }, [agentEvents, currentSession, clearAgentEvents]);
+    setProcessedEventsIndex(agentEvents.length);
+  }, [agentEvents, currentSession, processedEventsIndex]);
 
   if (!agent) {
     return (
@@ -201,8 +210,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, agentEvents
     setLoadingStatus({ type: 'thinking', message: 'Thinking...' });
     
     try {
-        // Clear any stale events from a previous run
-        clearAgentEvents();
         // The runTurn method now returns only the final answer
         await currentSession.runTurn(currentInput, currentFile);
         // The session history has been updated by the runTurn call and the event handler

@@ -173,10 +173,10 @@ export const useManagementSocket = ({ onAgentStarted }: { onAgentStarted: (agent
             const { agent, line } = message;
             appendLog(`[${agent}] ${line}`);
           } else if (message.type === 'agent_event') {
-            const { agent: agentId, data } = message;
+            const { agent: agentId } = message;
             setAgentEvents(prev => ({
               ...prev,
-              [agentId]: [...(prev[agentId] || []), data],
+              [agentId]: [...(prev[agentId] || []), message],
             }));
           }
         } catch (error) {
