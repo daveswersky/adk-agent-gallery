@@ -48,7 +48,13 @@ async def _read_stream_and_signal_start(stream, agent_name: str, is_error_stream
         stream_name = "stderr" if is_error_stream else "stdout"
         print(f"AGENT_HOST_SUBPROCESS({agent_name}, {stream_name}): {line_str}", flush=True)
 
-        log_line = f"[ERROR] {line_str}" if is_error_stream else line_str
+        log_line = line_str
+        if is_error_stream:
+            # A lot of informational output from dependencies can go to stderr.
+            # We'll do a simple check to avoid tagging common patterns as errors.
+            if not (re.search(r"^\s*(INFO|DEBUG|WARNING)", line_str, re.IGNORECASE) or "Uvicorn running on" in line_str):
+                log_line = f"[ERROR] {line_str}"
+
         await manager.broadcast(json.dumps({"type": "log", "agent": agent_name, "line": log_line}))
 
         if not started_event.is_set() and "Uvicorn running on" in line_str:
@@ -61,7 +67,16 @@ async def _read_pip_stream(stream, agent_name: str, is_error_stream: bool):
         if not line:
             break
         line_str = line.decode().strip()
-        log_line = f"[PIP_ERROR] {line_str}" if is_error_stream else f"[PIP] {line_str}"
+
+        log_line = f"[PIP] {line_str}"
+        if is_error_stream:
+            # Pip/uv often prints non-error status updates to stderr.
+            # We'll do a simple check to avoid tagging common patterns as errors.
+            if not re.search(r"^\s*(audited|resolving|downloading|installing)", line_str, re.IGNORECASE):
+                 log_line = f"[PIP_ERROR] {line_str}"
+            else:
+                 log_line = f"[PIP] {line_str}" # It's just a status update
+
         await manager.broadcast(json.dumps({"type": "log", "agent": agent_name, "line": log_line}))
 
 
