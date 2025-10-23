@@ -100,6 +100,11 @@ This document is a running list of ideas for future enhancements to the Agent Ga
     - The `AgentSidebar.tsx` component must be modified to allow selecting agents that are not currently running.
     - State management in `App.tsx` must be updated to fetch and store the README content when a non-running agent is selected.
     - The `ChatInterface.tsx` component needs to be updated to display the fetched Markdown content when available, instead of the chat view.
+- [ADK Event View](./feature/Event-Viewer.md): Display a stream of ADK events in the InfoPane.
+  - **Effort Assessment: FEATURE**
+  - This feature will use the `EventStreamingPlugin` to capture and forward all ADK events (e.g., `on_prompt_start`, `on_tool_code_generated`, `on_llm_chunk`) from the agent subprocess to the frontend.
+  - **Backend:** The `EventStreamingPlugin` needs to be attached to the `Runner` in `agent_host.py`. The plugin will send each event to the main backend, which will then broadcast it over the WebSocket.
+  - **Frontend:** The `InfoPane.tsx` component will be updated with a new "Events" tab to display the structured event data. The existing "Logs" tab will remain. The `useManagementSocket.ts` hook will be updated to handle the new event message type.
 - [Artifact service support](./feature/Artifact-service-support.md)
   - **Effort Assessment: FEATURE**
   - This feature is about integrating the ADK's built-in Artifact Service, not building one from scratch. The work is primarily plumbing and integration.

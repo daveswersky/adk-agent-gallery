@@ -70,7 +70,16 @@ export interface ConfigMessage {
   data: { name: string; path: string }[];
 }
 
-export type ServerMessage = StatusMessage | LogMessage | ConfigMessage;
+export interface AgentEvent {
+  type: 'agent_event';
+  agent: string;
+  data: {
+    event: string;
+    data: any;
+  };
+}
+
+export type ServerMessage = StatusMessage | LogMessage | ConfigMessage | AgentEvent;
 
 
 // WebSocket message types from client

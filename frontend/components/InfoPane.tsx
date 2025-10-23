@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { Agent, AgentStatus } from '../types';
+import { Agent, AgentStatus, AgentEvent } from '../types';
 import { LogViewer } from './LogViewer';
+import { EventViewer } from './EventViewer';
 import { SpinnerIcon } from './icons';
 import { sessionManager } from '../services/sessionManager';
 import { SessionItem } from './SessionItem';
@@ -9,9 +10,11 @@ interface InfoPaneProps {
   logs: string[];
   agents: Agent[];
   selectedAgent: Agent | null;
+  agentEvents: Record<string, AgentEvent[]>;
+  onClearAgentEvents: (agentId: string) => void;
 }
 
-type ActiveTab = 'Servers' | 'Events' | 'Sessions';
+type ActiveTab = 'Servers' | 'Logs' | 'Events' | 'Sessions';
 
 const StatusIndicator: React.FC<{ status: AgentStatus }> = ({ status }) => {
   const title = status.charAt(0) + status.slice(1).toLowerCase();
@@ -28,16 +31,24 @@ const StatusIndicator: React.FC<{ status: AgentStatus }> = ({ status }) => {
   }
 };
 
-export const InfoPane: React.FC<InfoPaneProps> = ({ logs, agents, selectedAgent }) => {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('Events');
+export const InfoPane: React.FC<InfoPaneProps> = ({ logs, agents, selectedAgent, agentEvents, onClearAgentEvents }) => {
+  const [activeTab, setActiveTab] = useState<ActiveTab>('Logs');
 
   const filteredLogs = useMemo(() => {
     if (!selectedAgent) {
       return logs.filter(log => !log.startsWith('['));
     }
-    const agentPrefix = `[${selectedAgent.id}]`;
-    return logs.filter(log => !log.startsWith('[') || log.startsWith(agentPrefix));
+    const agentPrefix = `[${selectedAgent.name}]`;
+    const serverLogPrefix = `[server]`;
+    return logs.filter(log => log.startsWith(agentPrefix) || log.startsWith(serverLogPrefix) || !log.includes('] '));
   }, [logs, selectedAgent]);
+
+  const filteredEvents = useMemo(() => {
+    if (selectedAgent) {
+      return agentEvents[selectedAgent.id] || [];
+    }
+    return [];
+  }, [agentEvents, selectedAgent]);
 
   const getTabClass = (tabName: ActiveTab) => {
     return `px-4 py-2 text-sm font-medium rounded-t-md cursor-pointer transition-colors ${
@@ -81,10 +92,19 @@ export const InfoPane: React.FC<InfoPaneProps> = ({ logs, agents, selectedAgent 
             )}
           </div>
         );
-      case 'Events':
+      case 'Logs':
         return (
           <div data-testid="info-pane-logs" className="h-full">
             <LogViewer logs={filteredLogs} />
+          </div>
+        );
+      case 'Events':
+        return (
+          <div data-testid="info-pane-events" className="h-full">
+            <EventViewer 
+              events={filteredEvents} 
+              onClear={() => selectedAgent && onClearAgentEvents(selectedAgent.id)} 
+            />
           </div>
         );
       case 'Sessions':
@@ -113,6 +133,11 @@ export const InfoPane: React.FC<InfoPaneProps> = ({ logs, agents, selectedAgent 
           <li>
             <button onClick={() => setActiveTab('Servers')} className={getTabClass('Servers')}>
               Servers
+            </button>
+          </li>
+          <li>
+            <button onClick={() => setActiveTab('Logs')} className={getTabClass('Logs')}>
+              Logs
             </button>
           </li>
           <li>

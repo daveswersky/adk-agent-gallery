@@ -221,7 +221,13 @@ const App: React.FC = () => {
           aria-orientation="horizontal"
         />
         <div style={{ height: `${infoPaneHeight}px` }} className="flex-shrink-0">
-          <InfoPane logs={logs} agents={agents} selectedAgent={selectedAgent} />
+          <InfoPane 
+            logs={logs} 
+            agents={agents} 
+            selectedAgent={selectedAgent}
+            agentEvents={agentEvents}
+            onClearAgentEvents={clearAgentEvents}
+          />
         </div>
       </main>
       {isCodeViewerOpen && (

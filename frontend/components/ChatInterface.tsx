@@ -119,16 +119,19 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, agentEvents
     if (!currentSession) return;
 
     for (const event of agentEvents) {
-      if (event.event === 'before_tool_call') {
-        const toolName = event.tool_call.name;
+      const eventName = event.data.event;
+      const eventData = event.data.data;
+
+      if (eventName === 'before_tool_callback') {
+        const toolName = eventData.tool_name;
         setLoadingStatus({ type: 'tool_use', message: `Using ${toolName} tool...` });
-        const toolArgs = JSON.stringify(event.tool_call.args, null, 2);
+        const toolArgs = JSON.stringify(eventData.tool_args, null, 2);
         currentSession.history.push({ role: 'tool', content: `Calling tool: ${toolName}\nArguments:\n${toolArgs}` });
         setMessages([...currentSession.history]);
-      } else if (event.event === 'after_tool_call') {
+      } else if (eventName === 'after_tool_callback') {
         setLoadingStatus({ type: 'thinking', message: 'Thinking...' });
-        const toolName = event.tool_call.name;
-        const toolResult = JSON.stringify(event.tool_result, null, 2);
+        const toolName = eventData.tool_name;
+        const toolResult = JSON.stringify(eventData.tool_result, null, 2);
         currentSession.history.push({ role: 'tool', content: `Tool ${toolName} returned:\n${toolResult}` });
         setMessages([...currentSession.history]);
       }

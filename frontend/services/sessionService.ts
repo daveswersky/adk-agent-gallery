@@ -125,7 +125,7 @@ class Session {
                 const errorText = await response.text();
                 console.error("Error response from server:", errorText);
                 await this.recordRequest(requestClone, response, errorText);
-                throw new HttpError(response.status, `Failed to run turn: ${response.statusText}`);
+                throw new HttpError(`Failed to run turn: ${response.statusText}`, response.status);
             }
 
             const responseData = await response.json();
