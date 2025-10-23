@@ -118,13 +118,18 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, agentEvents
 
   // Effect to process real-time agent events from the WebSocket
   useEffect(() => {
-    if (!currentSession || agentEvents.length <= processedEventsIndex) return;
+    if (!currentSession || agentEvents.length === processedEventsIndex) return;
 
     const newEvents = agentEvents.slice(processedEventsIndex);
 
     for (const event of newEvents) {
-      const eventName = event.data.event;
-      const eventData = event.data.data;
+      const eventName = event.data?.event;
+      const eventData = event.data?.data;
+
+      if (!eventName || !eventData) {
+        console.warn("Received agent event with missing data:", event);
+        continue;
+      }
 
       if (eventName === 'before_tool_callback') {
         const toolName = eventData.tool_name;

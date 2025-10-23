@@ -36,11 +36,12 @@ export const InfoPane: React.FC<InfoPaneProps> = ({ logs, agents, selectedAgent,
 
   const filteredLogs = useMemo(() => {
     if (!selectedAgent) {
-      return logs.filter(log => !log.startsWith('['));
+      // Show server logs (no agent prefix) when no agent is selected
+      return logs.filter(log => !log.startsWith('[') || log.startsWith('[server]'));
     }
     const agentPrefix = `[${selectedAgent.name}]`;
     const serverLogPrefix = `[server]`;
-    return logs.filter(log => log.startsWith(agentPrefix) || log.startsWith(serverLogPrefix) || !log.includes('] '));
+    return logs.filter(log => log.startsWith(agentPrefix) || log.startsWith(serverLogPrefix));
   }, [logs, selectedAgent]);
 
   const filteredEvents = useMemo(() => {
