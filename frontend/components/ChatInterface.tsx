@@ -72,6 +72,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, agentEvents
   const [loadingStatus, setLoadingStatus] = useState<LoadingStatus | null>(null);
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [processedEventsIndex, setProcessedEventsIndex] = useState(0);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -96,6 +97,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, agentEvents
             // If no agent is running, or we are in README view, clear session state.
             setCurrentSession(null);
             setMessages([]);
+            setProcessedEventsIndex(0);
         }
     };
     switchSession();
@@ -116,9 +118,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, agentEvents
 
   // Effect to process real-time agent events from the WebSocket
   useEffect(() => {
-    if (!currentSession) return;
+    if (!currentSession || agentEvents.length <= processedEventsIndex) return;
 
-    for (const event of agentEvents) {
+    const newEvents = agentEvents.slice(processedEventsIndex);
+
+    for (const event of newEvents) {
       const eventName = event.data.event;
       const eventData = event.data.data;
 
@@ -136,11 +140,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, agentEvents
         setMessages([...currentSession.history]);
       }
     }
-    // We've processed the events, clear them so they aren't re-processed
-    if (agentEvents.length > 0) {
-      clearAgentEvents();
-    }
-  }, [agentEvents, currentSession, clearAgentEvents]);
+    setProcessedEventsIndex(agentEvents.length);
+  }, [agentEvents, currentSession, processedEventsIndex]);
 
   if (!agent) {
     return (
@@ -204,8 +205,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, agentEvents
     setLoadingStatus({ type: 'thinking', message: 'Thinking...' });
     
     try {
-        // Clear any stale events from a previous run
-        clearAgentEvents();
         // The runTurn method now returns only the final answer
         await currentSession.runTurn(currentInput, currentFile);
         // The session history has been updated by the runTurn call and the event handler
