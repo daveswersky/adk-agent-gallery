@@ -52,7 +52,13 @@ async def _read_stream_and_signal_start(stream, agent_name: str, is_error_stream
         if is_error_stream:
             # A lot of informational output from dependencies can go to stderr.
             # We'll do a simple check to avoid tagging common patterns as errors.
-            if not (re.search(r"^\s*(INFO|DEBUG|WARNING)", line_str, re.IGNORECASE) or "Uvicorn running on" in line_str):
+            is_info = (
+                re.search(r"^\s*(INFO|DEBUG|WARNING)", line_str, re.IGNORECASE) or
+                "Uvicorn running on" in line_str or
+                "Both GOOGLE_API_KEY and GEMINI_API_KEY are set" in line_str or
+                "Warning: there are non-text parts in the response" in line_str
+            )
+            if not is_info:
                 log_line = f"[ERROR] {line_str}"
 
         await manager.broadcast(json.dumps({"type": "log", "agent": agent_name, "line": log_line}))
