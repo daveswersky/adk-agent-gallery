@@ -49,6 +49,9 @@ export const useManagementSocket = ({ onAgentStarted }: { onAgentStarted: (agent
       // Sort roots by path length, descending, to find the most specific match first.
       const sortedRoots = [...agentRoots].sort((a, b) => b.path.length - a.path.length);
       
+      // Sort stopped agents alphabetically by name.
+      stoppedAgents.sort((a, b) => a.name.localeCompare(b.name));
+
       // Create a map of agentId -> groupName
       const agentToGroupMap = new Map<string, string>();
       stoppedAgents.forEach(agent => {
