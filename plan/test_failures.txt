@@ -1,0 +1,394 @@
+platform darwin -- Python 3.12.8, pytest-8.4.2, pluggy-1.6.0
+rootdir: /Users/daveswersky/repos/work/agent-gallery
+configfile: pytest.ini
+plugins: asyncio-1.2.0, anyio-4.11.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 7 items
+
+backend/tests/test_agent_host.py .                                                                            [ 14%]
+backend/tests/test_event_streaming_plugin.py FF.                                                              [ 57%]
+backend/tests/test_integration.py .FF                                                                         [100%]
+
+===================================================== FAILURES ======================================================
+_____________________________________________ test_before_tool_callback _____________________________________________
+
+plugin = <backend.event_streaming_plugin.EventStreamingPlugin object at 0x11c5738f0>
+mock_pipe = <_io.StringIO object at 0x110daf7c0>
+
+    @pytest.mark.asyncio
+    async def test_before_tool_callback(plugin, mock_pipe):
+        """Verify that before_tool_callback writes a correctly formatted event."""
+        mock_tool = MockTool()
+        tool_args = {"arg": "value"}
+
+        await plugin.before_tool_callback(tool=mock_tool, tool_args=tool_args, tool_context=None)
+
+        event_str = mock_pipe.getvalue().strip()
+        event = json.loads(event_str)
+
+        assert event["event"] == "before_tool_call"
+>       assert event["tool_call"]["name"] == "test_tool"
+               ^^^^^^^^^^^^^^^^^^
+E       KeyError: 'tool_call'
+
+backend/tests/test_event_streaming_plugin.py:37: KeyError
+_____________________________________________ test_after_tool_callback ______________________________________________
+
+plugin = <backend.event_streaming_plugin.EventStreamingPlugin object at 0x11c570aa0>
+mock_pipe = <_io.StringIO object at 0x11c6331c0>
+
+    @pytest.mark.asyncio
+    async def test_after_tool_callback(plugin, mock_pipe):
+        """Verify that after_tool_callback writes a correctly formatted event."""
+        mock_tool = MockTool()
+        tool_args = {"arg": "value"}
+        mock_result = MockToolResult()
+
+        await plugin.after_tool_callback(tool=mock_tool, tool_args=tool_args, tool_context=None, result=mock_result)
+
+        event_str = mock_pipe.getvalue().strip()
+        event = json.loads(event_str)
+
+        assert event["event"] == "after_tool_call"
+>       assert event["tool_call"]["name"] == "test_tool"
+               ^^^^^^^^^^^^^^^^^^
+E       KeyError: 'tool_call'
+
+backend/tests/test_event_streaming_plugin.py:53: KeyError
+_____________________________________________ test_start_and_stop_agent _____________________________________________
+
+websocket = <websockets.asyncio.client.ClientConnection object at 0x11c69ac90>, text = '"status": "running"'
+timeout = 30
+
+    async def get_message_containing(websocket, text, timeout):
+        """Helper to wait for a specific message from the websocket with a timeout."""
+        try:
+            async with asyncio.timeout(timeout):
+                while True:
+                    try:
+>                       message = await websocket.recv()
+                                  ^^^^^^^^^^^^^^^^^^^^^^
+
+backend/tests/test_integration.py:50:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+.venv/lib/python3.12/site-packages/websockets/asyncio/connection.py:303: in recv
+    return await self.recv_messages.get(decode)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/websockets/asyncio/messages.py:159: in get
+    frame = await self.frames.get(not self.closed)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <websockets.asyncio.messages.SimpleQueue object at 0x11c69b320>, block = True
+
+    async def get(self, block: bool = True) -> T:
+        """Remove and return an item from the queue, waiting if necessary."""
+        if not self.queue:
+            if not block:
+                raise EOFError("stream of frames ended")
+            assert self.get_waiter is None, "cannot call get() concurrently"
+            self.get_waiter = self.loop.create_future()
+            try:
+>               await self.get_waiter
+E               asyncio.exceptions.CancelledError
+
+.venv/lib/python3.12/site-packages/websockets/asyncio/messages.py:51: CancelledError
+
+The above exception was the direct cause of the following exception:
+
+websocket = <websockets.asyncio.client.ClientConnection object at 0x11c69ac90>, text = '"status": "running"'
+timeout = 30
+
+    async def get_message_containing(websocket, text, timeout):
+        """Helper to wait for a specific message from the websocket with a timeout."""
+        try:
+>           async with asyncio.timeout(timeout):
+                       ^^^^^^^^^^^^^^^^^^^^^^^^
+
+backend/tests/test_integration.py:47:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <Timeout [expired]>, exc_type = <class 'asyncio.exceptions.CancelledError'>, exc_val = CancelledError()
+exc_tb = <traceback object at 0x11c6be9c0>
+
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> Optional[bool]:
+        assert self._state in (_State.ENTERED, _State.EXPIRING)
+
+        if self._timeout_handler is not None:
+            self._timeout_handler.cancel()
+            self._timeout_handler = None
+
+        if self._state is _State.EXPIRING:
+            self._state = _State.EXPIRED
+
+            if self._task.uncancel() <= self._cancelling and exc_type is exceptions.CancelledError:
+                # Since there are no new cancel requests, we're
+                # handling this.
+>               raise TimeoutError from exc_val
+E               TimeoutError
+
+/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/timeouts.py:115: TimeoutError
+
+During handling of the above exception, another exception occurred:
+
+websocket_connection = <websockets.asyncio.client.ClientConnection object at 0x11c69ac90>
+
+    @pytest.mark.asyncio
+    async def test_start_and_stop_agent(websocket_connection: websockets.ClientConnection):
+        """Tests the full lifecycle of starting and stopping a single agent."""
+        websocket = websocket_connection
+
+        start_command = {"action": "start", "agent_name": "agents/greeting_agent", "port": 8001}
+        await websocket.send(json.dumps(start_command))
+
+>       running_message = await get_message_containing(websocket, '"status": "running"', timeout=30)
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+backend/tests/test_integration.py:81:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+websocket = <websockets.asyncio.client.ClientConnection object at 0x11c69ac90>, text = '"status": "running"'
+timeout = 30
+
+    async def get_message_containing(websocket, text, timeout):
+        """Helper to wait for a specific message from the websocket with a timeout."""
+        try:
+            async with asyncio.timeout(timeout):
+                while True:
+                    try:
+                        message = await websocket.recv()
+                        if text in message:
+                            return json.loads(message)
+                    except ConnectionClosed:
+                        pytest.fail("Connection was closed unexpectedly.")
+        except TimeoutError:
+>           pytest.fail(f"Timed out waiting for message containing: {text}")
+E           Failed: Timed out waiting for message containing: "status": "running"
+
+backend/tests/test_integration.py:56: Failed
+----------------------------------------------- Captured stdout setup -----------------------------------------------
+INFO:     127.0.0.1:55772 - "GET /agents HTTP/1.1" 200 OK
+----------------------------------------------- Captured stderr setup -----------------------------------------------
+INFO:     Started server process [82207]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:55774 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:55882 - "WebSocket /ws" [accepted]
+INFO:     connection open
+----------------------------------------------- Captured stdout call ------------------------------------------------
+An unexpected error occurred while starting agents/greeting_agent: [Errno 2] No such file or directory: 'agents/greeting_agent/.venv/bin/uv'
+--- DEBUG: Cleaning up state for 'agents/greeting_agent'.
+--- DEBUG: Cleanup for 'agents/greeting_agent' complete.
+--------------------------------------------- Captured stdout teardown ----------------------------------------------
+Client disconnected. Stopping all agents to clean up test state.
+Client disconnected. Stopping all agents to clean up test state.
+Server shutting down. Terminating agent processes...
+All agent processes terminated.
+--------------------------------------------- Captured stderr teardown ----------------------------------------------
+INFO:     connection closed
+INFO:     Shutting down
+INFO:     connection closed
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [82207]
+_______________________________________________ test_stop_all_agents ________________________________________________
+
+websocket = <websockets.asyncio.client.ClientConnection object at 0x11c6e1e50>, text = '"status": "running"'
+timeout = 40
+
+    async def get_message_containing(websocket, text, timeout):
+        """Helper to wait for a specific message from the websocket with a timeout."""
+        try:
+            async with asyncio.timeout(timeout):
+                while True:
+                    try:
+>                       message = await websocket.recv()
+                                  ^^^^^^^^^^^^^^^^^^^^^^
+
+backend/tests/test_integration.py:50:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+.venv/lib/python3.12/site-packages/websockets/asyncio/connection.py:303: in recv
+    return await self.recv_messages.get(decode)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/websockets/asyncio/messages.py:159: in get
+    frame = await self.frames.get(not self.closed)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <websockets.asyncio.messages.SimpleQueue object at 0x11c6e2420>, block = True
+
+    async def get(self, block: bool = True) -> T:
+        """Remove and return an item from the queue, waiting if necessary."""
+        if not self.queue:
+            if not block:
+                raise EOFError("stream of frames ended")
+            assert self.get_waiter is None, "cannot call get() concurrently"
+            self.get_waiter = self.loop.create_future()
+            try:
+>               await self.get_waiter
+E               asyncio.exceptions.CancelledError
+
+.venv/lib/python3.12/site-packages/websockets/asyncio/messages.py:51: CancelledError
+
+The above exception was the direct cause of the following exception:
+
+websocket = <websockets.asyncio.client.ClientConnection object at 0x11c6e1e50>, text = '"status": "running"'
+timeout = 40
+
+    async def get_message_containing(websocket, text, timeout):
+        """Helper to wait for a specific message from the websocket with a timeout."""
+        try:
+>           async with asyncio.timeout(timeout):
+                       ^^^^^^^^^^^^^^^^^^^^^^^^
+
+backend/tests/test_integration.py:47:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <Timeout [expired]>, exc_type = <class 'asyncio.exceptions.CancelledError'>, exc_val = CancelledError()
+exc_tb = <traceback object at 0x11c743700>
+
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> Optional[bool]:
+        assert self._state in (_State.ENTERED, _State.EXPIRING)
+
+        if self._timeout_handler is not None:
+            self._timeout_handler.cancel()
+            self._timeout_handler = None
+
+        if self._state is _State.EXPIRING:
+            self._state = _State.EXPIRED
+
+            if self._task.uncancel() <= self._cancelling and exc_type is exceptions.CancelledError:
+                # Since there are no new cancel requests, we're
+                # handling this.
+>               raise TimeoutError from exc_val
+E               TimeoutError
+
+/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/timeouts.py:115: TimeoutError
+
+During handling of the above exception, another exception occurred:
+
+websocket_connection = <websockets.asyncio.client.ClientConnection object at 0x11c6e1e50>
+
+    @pytest.mark.asyncio
+    async def test_stop_all_agents(websocket_connection: websockets.ClientConnection):
+        """Tests the 'stop_all' functionality."""
+        websocket = websocket_connection
+
+        await websocket.send(json.dumps({"action": "start", "agent_name": "agents/greeting_agent", "port": 8001}))
+        await websocket.send(json.dumps({"action": "start", "agent_name": "agents/weather_agent", "port": 8002}))
+
+        running_agents = set()
+        for _ in range(2):
+>           msg = await get_message_containing(websocket, '"status": "running"', timeout=40)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+backend/tests/test_integration.py:102:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+websocket = <websockets.asyncio.client.ClientConnection object at 0x11c6e1e50>, text = '"status": "running"'
+timeout = 40
+
+    async def get_message_containing(websocket, text, timeout):
+        """Helper to wait for a specific message from the websocket with a timeout."""
+        try:
+            async with asyncio.timeout(timeout):
+                while True:
+                    try:
+                        message = await websocket.recv()
+                        if text in message:
+                            return json.loads(message)
+                    except ConnectionClosed:
+                        pytest.fail("Connection was closed unexpectedly.")
+        except TimeoutError:
+>           pytest.fail(f"Timed out waiting for message containing: {text}")
+E           Failed: Timed out waiting for message containing: "status": "running"
+
+backend/tests/test_integration.py:56: Failed
+----------------------------------------------- Captured stderr setup -----------------------------------------------
+INFO:     Started server process [82207]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:55920 - "WebSocket /ws" [accepted]
+INFO:     connection open
+----------------------------------------------- Captured stdout call ------------------------------------------------
+An unexpected error occurred while starting agents/greeting_agent: [Errno 2] No such file or directory: 'agents/greeting_agent/.venv/bin/uv'
+--- DEBUG: Cleaning up state for 'agents/greeting_agent'.
+--- DEBUG: Cleanup for 'agents/greeting_agent' complete.
+An unexpected error occurred while starting agents/weather_agent: [Errno 2] No such file or directory: 'agents/weather_agent/.venv/bin/uv'
+--- DEBUG: Cleaning up state for 'agents/weather_agent'.
+--- DEBUG: Cleanup for 'agents/weather_agent' complete.
+INFO:     127.0.0.1:55922 - "GET /agents HTTP/1.1" 200 OK
+----------------------------------------------- Captured stderr call ------------------------------------------------
+INFO:     127.0.0.1:55924 - "WebSocket /ws" [accepted]
+INFO:     connection open
+--------------------------------------------- Captured stdout teardown ----------------------------------------------
+Client disconnected. Stopping all agents to clean up test state.
+Client disconnected. Stopping all agents to clean up test state.
+Server shutting down. Terminating agent processes...
+All agent processes terminated.
+--------------------------------------------- Captured stderr teardown ----------------------------------------------
+INFO:     connection closed
+INFO:     Shutting down
+INFO:     connection closed
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [82207]
+================================================= warnings summary ==================================================
+.venv/lib/python3.12/site-packages/google/genai/types.py:9523
+  /Users/daveswersky/repos/work/agent-gallery/.venv/lib/python3.12/site-packages/google/genai/types.py:9523: PydanticDeprecatedSince212: Using `@model_validator` with mode='after' on a classmethod is deprecated. Instead, use an instance method. See the documentation at https://docs.pydantic.dev/2.12/concepts/validators/#model-after-validator. Deprecated in Pydantic V2.12 to be removed in V3.0.
+    @model_validator(mode='after')  # type: ignore[arg-type]
+
+backend/main.py:60
+  /Users/daveswersky/repos/work/agent-gallery/backend/main.py:60: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("shutdown")
+
+.venv/lib/python3.12/site-packages/fastapi/applications.py:4574
+  /Users/daveswersky/repos/work/agent-gallery/.venv/lib/python3.12/site-packages/fastapi/applications.py:4574: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    return self.router.on_event(event_type)
+
+backend/tests/test_integration.py::test_websocket_connection
+  /Users/daveswersky/repos/work/agent-gallery/.venv/lib/python3.12/site-packages/websockets/legacy/__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+    warnings.warn(  # deprecated in 14.0 - 2024-11-09
+
+backend/tests/test_integration.py::test_websocket_connection
+  /Users/daveswersky/repos/work/agent-gallery/.venv/lib/python3.12/site-packages/uvicorn/protocols/websockets/websockets_impl.py:17: DeprecationWarning: websockets.server.WebSocketServerProtocol is deprecated
+    from websockets.server import WebSocketServerProtocol
+
+backend/tests/test_integration.py::test_websocket_connection
+backend/tests/test_integration.py::test_start_and_stop_agent
+backend/tests/test_integration.py::test_start_and_stop_agent
+backend/tests/test_integration.py::test_stop_all_agents
+backend/tests/test_integration.py::test_stop_all_agents
+  /Users/daveswersky/repos/work/agent-gallery/.venv/lib/python3.12/site-packages/websockets/legacy/server.py:1178: DeprecationWarning: remove second argument of ws_handler
+    warnings.warn("remove second argument of ws_handler", DeprecationWarning)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+============================================== short test summary info ==============================================
+FAILED backend/tests/test_event_streaming_plugin.py::test_before_tool_callback - KeyError: 'tool_call'
+FAILED backend/tests/test_event_streaming_plugin.py::test_after_tool_callback - KeyError: 'tool_call'
+FAILED backend/tests/test_integration.py::test_start_and_stop_agent - Failed: Timed out waiting for message containing: "status": "running"
+FAILED backend/tests/test_integration.py::test_stop_all_agents - Failed: Timed out waiting for message containing: "status": "running"
+=============================== 4 failed, 3 passed, 10 warnings in 102.93s (0:01:42) =

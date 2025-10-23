@@ -1,3 +1,6 @@
 [submodule "agents/adk-samples"]
 	path = agents/adk-samples
 	url = https://github.com/daveswersky/adk-samples
+[submodule "agents/a2a-samples"]
+	path = agents/a2a-samples
+	url = https://github.com/a2aproject/a2a-samples

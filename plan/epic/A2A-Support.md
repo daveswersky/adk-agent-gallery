@@ -1,61 +1,128 @@
-# Epic: Agent-to-Agent (A2A) Communication
+# Epic: A2A Support - Phase 1 Implementation Plan (Backend Rearchitecture)
 
-**Summary:** This epic covers the architectural changes required to enable agents running within the gallery to communicate with each other. The current architecture isolates each agent in its own subprocess, preventing any form of direct interaction.
+**Summary:** The foundational step for enabling Agent-to-Agent (A2A) communication is to re-architect the backend to support running self-contained, "self-hosted" agents (like the A2A samples) alongside the existing "raw" ADK agents.
 
-**Key Challenges:**
--   **Communication Infrastructure:** A system for inter-agent message passing must be designed and built.
--   **Core Agent Logic (`google-adk`):** The ADK `Runner` must be adapted to handle events from other agents.
--   **API and State Management:** The concept of a "turn" needs to be expanded to support multi-agent conversations.
--   **Frontend UI:** The UI needs to be updated to visualize A2A interactions.
+This plan details the implementation of a **Dual-Runner Architecture** where the host remains responsible for the full lifecycle of all agents, ensuring a consistent and centralized management model.
+
+**Reference Agent:** The `dice_agent_rest` agent located in `agents/a2a-samples/samples/python/agents/` will be used as the primary test case for the "a2a" agent type. The `greeting_agent` will be used to ensure the existing "adk" agent type remains functional.
 
 ---
 
-## Phase 1: Backend Infrastructure (The Message Bus)
+## Implementation Steps
 
-This phase focuses on creating the core communication channel. The simplest approach is to use the main backend server as a central message broker.
+### Phase 1: Configuration and Agent Discovery
 
--   **Feature: A2A Message Broker API**
-    -   **Story:** As a backend developer, I want to create a new WebSocket or HTTP endpoint that agents can use to send messages to other agents.
-    -   **Tasks:**
-        -   Design a message format (e.g., `{ "sender": "agent_a", "recipient": "agent_b", "payload": ... }`).
-        -   Implement a new endpoint (e.g., `/a2a/send`) on the main FastAPI backend.
-        -   This endpoint will look up the recipient agent in the `running_processes` dictionary and forward the message to it.
+This phase focuses on updating the backend to understand the two different agent types based on a centralized configuration file.
 
--   **Feature: Agent-level A2A Listener**
-    -   **Story:** As an agent, I need a way to receive messages forwarded by the central broker.
-    -   **Tasks:**
-        -   Add a new endpoint (e.g., `/receive_a2a_message`) to the agent's internal web server in `agent_host.py`.
-        -   This endpoint will receive the message and needs a mechanism to inject it into the running ADK `Runner`. This is a complex task and a key part of the ADK integration.
+-   **Step 1.1: Enhance `gallery.config.yaml`**
+    -   **Action:** Introduce a new top-level section named `agent_configs`. This section will be a dictionary where keys are the full agent ID (e.g., `agents/a2a-samples/samples/python/agents/dice_agent_rest`) and values are objects specifying the agent's runtime configuration.
+    -   **Schema:** The configuration object will have the following keys:
+        -   `type`: (string, required) e.g., `"a2a"`
+        -   `dependencies`: (string, required) The dependency file to use, e.g., `"pyproject.toml"` or `"requirements.txt"`
+        -   `entrypoint`: (string, required) The script to execute, e.g., `"__main__.py"`
+    -   **Default:** Any agent *not* found in `agent_configs` will be treated as `type: "adk"` with `dependencies: "requirements.txt"`.
 
-## Phase 2: ADK and Agent Logic Integration
+-   **Step 1.2: Update Backend Configuration Loading**
+    -   **File:** `backend/main.py`
+    -   **Action:** Modify the server startup logic to read the `gallery.config.yaml` and parse the new `agent_configs` section into an in-memory dictionary. This dictionary will be used to look up agent configurations.
 
-This phase is about making the agents "A2A-aware".
+-   **Step 1.3: Create Agent Configuration Data Structure**
+    -   **File:** `backend/main.py` (or a new `backend/config.py`)
+    -   **Action:** Define a Pydantic model or a simple data class to represent the merged configuration for an agent (its ID, type, dependencies file, and entrypoint). The loading logic from Step 1.2 will populate these models, applying defaults for any agent not explicitly configured.
 
--   **Feature: A2A Tool for Agents**
-    -   **Story:** As an agent developer, I want a simple tool that my agent can use to send a message to another agent.
-    -   **Tasks:**
-        -   Create a new standard `a2a_tool` that can be imported and used by any agent.
-        -   This tool will have a function like `send_message(recipient_agent_name: str, message: str)`.
-        -   The tool's implementation will simply make an HTTP request to the backend's `/a2a/send` endpoint.
+-   **Testing for Phase 1:**
+    -   **Action:** Create a unit test that loads a sample `gallery.config.yaml`.
+    -   **Verify:**
+        -   The test should assert that the configuration for `dice_agent_rest` is correctly loaded with `type: "a2a"`.
+        -   The test should assert that the configuration for `greeting_agent` (which is not in the config) correctly receives the default values (`type: "adk"`).
 
--   **Feature: ADK Runner A2A Integration**
-    -   **Story:** As the ADK `Runner`, I need to be able to process incoming A2A messages as if they were user input.
-    -   **Tasks:**
-        -   Modify the `agent_host.py` script to handle the injection of messages received by the A2A listener.
-        -   This will likely involve calling the `runner.run_async()` method with the new message, which requires careful state and session management. This work is highly dependent on the **Multi-session support** epic.
+### Phase 2: Refactor Runners into a Base Class
 
-## Phase 3: Frontend Visualization
+This phase introduces a `BaseAgentRunner` to reduce code duplication and enforce a common interface.
 
-This phase focuses on the user-facing aspect of A2A.
+-   **Step 2.1: Create `base_agent_runner.py`**
+    -   **Action:** Create a new file: `backend/base_agent_runner.py`.
 
--   **Feature: A2A Event Visualization**
-    -   **Story:** As a user, I want to see when an agent sends or receives a message from another agent.
-    -   **Tasks:**
-        -   Expand the `EventStreamingPlugin` to generate new event types, `a2a_message_sent` and `a2a_message_received`.
-        -   Update the `EventViewer` and `ChatInterface` to render these new events, clearly showing the sender and recipient.
+-   **Step 2.2: Define `BaseAgentRunner`**
+    -   **File:** `backend/base_agent_runner.py`
+    -   **Action:** Create an Abstract Base Class (ABC) named `BaseAgentRunner`.
 
--   **Feature: Agent Grouping UI**
-    -   **Story:** As a user, I want the UI to visually group agents that are actively communicating with each other.
-    -   **Tasks:**
-        -   The backend will need to track which agents are in a "conversation".
-        -   The frontend `AgentSidebar` will need to be updated to dynamically render these groups, perhaps by drawing a line between them or placing them in a container.
+-   **Step 2.3: Move Shared Logic to Base Class**
+    -   **File:** `backend/base_agent_runner.py`
+    -   **Action:**
+        -   Move the `__init__` logic for common attributes (`agent_id`, `port`, etc.) from `AgentRunner` to the base class.
+        -   Move the entire `stop` method from `AgentRunner` to the base class.
+        -   Move the venv creation and `uv` installation logic into a concrete method in the base class.
+        -   Move the helper functions (`_read_pip_stream`, `_read_stream_and_signal_start`) into this file.
+
+-   **Step 2.4: Define Abstract Methods**
+    -   **File:** `backend/base_agent_runner.py`
+    -   **Action:** Define abstract methods that subclasses must implement:
+        -   `_get_dependency_install_command(self) -> List[str]`
+        -   `_get_agent_execution_command(self) -> List[str]`
+
+-   **Step 2.5: Refactor `AgentRunner`**
+    -   **File:** `backend/agent_runner.py`
+    -   **Action:**
+        -   Modify `AgentRunner` to inherit from `BaseAgentRunner`.
+        -   Simplify its `start` method to call the base class's setup methods.
+        -   Implement the abstract methods to return the correct commands for installing from `requirements.txt` and executing `agent_host.py`.
+
+-   **Testing for Phase 2:**
+    -   **Action:** Run the existing tests for `AgentRunner`.
+    -   **Verify:** All tests should pass without modification, proving the refactor was successful and introduced no regressions.
+
+### Phase 3: Implement the `A2AAgentRunner`
+
+This phase creates the new runner, which is now much simpler thanks to the base class.
+
+-   **Step 3.1: Create `a2a_agent_runner.py`**
+    -   **Action:** Create a new file: `backend/a2a_agent_runner.py`.
+
+-   **Step 3.2: Define the `A2AAgentRunner` Class**
+    -   **File:** `backend/a2a_agent_runner.py`
+    -   **Action:** Define `A2AAgentRunner` to inherit from `BaseAgentRunner`.
+
+-   **Step 3.3: Implement Abstract Methods**
+    -   **File:** `backend/a2a_agent_runner.py`
+    -   **Action:** Implement the `_get_dependency_install_command` and `_get_agent_execution_command` methods to return the commands specified in the agent's `AgentConfig` (e.g., `uv pip install .` and `python __main__.py`).
+
+-   **Testing for Phase 3:**
+    -   **Action:** Create a unit test for the `A2AAgentRunner`.
+    -   **Verify:** The test should assert that the class correctly generates the dependency and execution commands based on a sample A2A agent configuration.
+
+### Phase 4: Implement the Runner Factory
+
+This phase integrates the new runner into the main backend logic.
+
+-   **Step 4.1: Modify the Agent Startup Logic**
+    -   **File:** `backend/main.py`
+    -   **Action:** Locate the `start_agent_process` function. This function will now become a "runner factory".
+
+-   **Step 4.2: Implement the Factory Logic**
+    -   **File:** `backend/main.py`
+    -   **Action:**
+        1.  Inside `start_agent_process`, use the agent's ID to look up its merged configuration.
+        2.  Use a simple `if/else` statement on the `type` field.
+        3.  If `type` is `"a2a"`, instantiate `A2AAgentRunner`.
+        4.  If `type` is `"adk"`, instantiate `AgentRunner`.
+        5.  Call `runner.start()` on the chosen instance.
+
+-   **Testing for Phase 4:**
+    -   **Action:** Create an integration test for the `start_agent_process` function.
+    -   **Verify:** Use mocks/patches for the runner classes. The test should call `start_agent_process` for both an ADK and an A2A agent and assert that the correct runner class was instantiated.
+
+### Phase 5: Integration and Manual Verification
+
+This final phase ensures all the pieces work together in the running application.
+
+-   **Step 5.1: Update Configuration**
+    -   **Action:** Ensure the root `gallery.config.yaml` file is correctly configured for `dice_agent_rest`.
+
+-   **Step 5.2: Manual End-to-End Test**
+    -   **Action:**
+        1.  Run the main gallery backend server.
+        2.  Open the frontend in a browser.
+        3.  **Test Case 1 (ADK Agent):** Start the `greeting_agent`. Verify it works as before.
+        4.  **Test Case 2 (A2A Agent):** Start the `dice_agent_rest`. Verify it installs dependencies from `pyproject.toml` and starts successfully.
+        5.  Stop both agents and verify they terminate cleanly.

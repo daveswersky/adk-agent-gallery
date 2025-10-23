@@ -7,8 +7,10 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict
+from backend.config import AgentConfig
 from pydantic import BaseModel
 import multiprocessing as mp
+from backend.a2a_agent_runner import A2AAgentRunner
 from backend.connection_manager import manager, running_processes, starting_agents, startup_lock
 from backend.agent_runner import AgentRunner
 
@@ -26,7 +28,22 @@ except FileNotFoundError:
 except yaml.YAMLError as e:
     print(f"Error parsing gallery.config.yaml: {e}")
 
+class AgentConfig(BaseModel):
+    """Represents the runtime configuration for a single agent."""
+    type: str = "adk"
+    dependencies: str = "requirements.txt"
+    entrypoint: str = ""
 
+# Parse agent-specific configurations with defaults
+AGENT_CONFIGS: Dict[str, AgentConfig] = {}
+_raw_agent_configs = CONFIG.get("agent_configs", {})
+if isinstance(_raw_agent_configs, dict):
+    for agent_id, config in _raw_agent_configs.items():
+        AGENT_CONFIGS[agent_id] = AgentConfig(**config)
+
+def get_agent_config(agent_id: str) -> AgentConfig:
+    """Returns the specific or default configuration for a given agent."""
+    return AGENT_CONFIGS.get(agent_id, AgentConfig())
 
 app.add_middleware(
     CORSMiddleware,
@@ -47,7 +64,7 @@ async def shutdown_event():
     for agent_name, agent_info in list(running_processes.items()):
         if isinstance(agent_info, dict) and "runner" in agent_info:
             runner = agent_info["runner"]
-            if isinstance(runner, AgentRunner):
+            if isinstance(runner, (AgentRunner, A2AAgentRunner)):
                 print(f"Stopping agent: {agent_name}")
                 await runner.stop()
     running_processes.clear()
@@ -288,7 +305,25 @@ async def start_agent_process(agent_path: str, port: int):
         if not os.path.isdir(agent_abs_path):
             raise FileNotFoundError(f"Agent directory '{agent_path}' not found.")
 
-        runner = AgentRunner(agent_path, agent_abs_path, port)
+        # Runner Factory
+        agent_id = os.path.basename(agent_path)
+        config = get_agent_config(agent_id)
+
+        if config.type == "a2a":
+            runner = A2AAgentRunner(
+                agent_path=agent_path,
+                agent_abs_path=agent_abs_path,
+                port=port,
+                config=config
+            )
+        else: # Default to "adk"
+            runner = AgentRunner(
+                agent_path=agent_path,
+                agent_abs_path=agent_abs_path,
+                port=port,
+                config=config
+            )
+        
         await runner.start()
 
         agent_url = f"http://localhost:{port}"
@@ -299,12 +334,15 @@ async def start_agent_process(agent_path: str, port: int):
             "type": "status",
             "agent": agent_path,
             "status": "running",
-            "pid": runner.process.pid,
+            "pid": runner.process.pid if hasattr(runner, 'process') and runner.process else -1,
             "url": agent_url
         }))
 
-        await runner.process.wait()
-        print(f"--- DEBUG: Process for '{agent_name_for_display}' terminated.")
+        # For ADK agents, we wait for the process to terminate.
+        # For A2A agents, the runner.start() is non-blocking.
+        if hasattr(runner, 'process') and runner.process:
+            await runner.process.wait()
+            print(f"--- DEBUG: Process for '{agent_name_for_display}' terminated.")
 
     except Exception as e:
         error_msg = f"An unexpected error occurred while starting {agent_path}: {e}"
