@@ -102,10 +102,15 @@ class Session {
             agent_name: this.agentId,
             prompt: prompt,
         };
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutes
+
         const options = {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
+            signal: controller.signal,
         };
 
         const request = new Request(url, options);
@@ -113,23 +118,27 @@ class Session {
         
         this.history.push({ role: 'user', content: historyPrompt });
 
-        const response = await fetch(request);
-        
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error("Error response from server:", errorText);
-            await this.recordRequest(requestClone, response, errorText);
-            throw new HttpError(response.status, `Failed to run turn: ${response.statusText}`);
+        try {
+            const response = await fetch(request);
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error("Error response from server:", errorText);
+                await this.recordRequest(requestClone, response, errorText);
+                throw new HttpError(response.status, `Failed to run turn: ${response.statusText}`);
+            }
+
+            const responseData = await response.json();
+            const agentResponse = responseData.response;
+
+            this.history.push({ role: 'model', content: agentResponse });
+            
+            await this.recordRequest(requestClone, response, JSON.stringify(responseData));
+
+            return agentResponse;
+        } finally {
+            clearTimeout(timeoutId);
         }
-
-        const responseData = await response.json();
-        const agentResponse = responseData.response;
-
-        this.history.push({ role: 'model', content: agentResponse });
-        
-        await this.recordRequest(requestClone, response, JSON.stringify(responseData));
-
-        return agentResponse;
     }
 }
 

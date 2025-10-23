@@ -256,7 +256,7 @@ class AgentRunner:
         
         async with httpx.AsyncClient() as client:
             try:
-                response = await client.post(url, json={"prompt": prompt}, timeout=60)
+                response = await client.post(url, json={"prompt": prompt}, timeout=300.0)
                 response.raise_for_status()
                 
                 agent_response = response.json().get("response", "")

@@ -190,7 +190,7 @@ async def run_turn(request: Request):
         
         response_chunks = []
         async for chunk in response_generator:
-            if hasattr(chunk, 'content') and chunk.content.parts:
+            if hasattr(chunk, 'content') and chunk.content is not None and chunk.content.parts:
                 for part in chunk.content.parts:
                     if hasattr(part, 'text') and part.text is not None:
                         response_chunks.append(part.text)
