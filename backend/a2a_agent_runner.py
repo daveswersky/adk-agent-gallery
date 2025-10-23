@@ -24,14 +24,18 @@ class A2AAgentRunner(BaseAgentRunner):
         # Return an empty list if no known dependency file is specified
         return []
 
-    def _get_agent_execution_command(self) -> List[str]:
+    def _get_agent_execution_command(self, event_pipe_fd: int) -> List[str]:
         """Returns the command to execute the agent's entrypoint."""
         venv_path = os.path.join(self.agent_abs_path, ".venv")
         python_executable = os.path.join(venv_path, "bin", "python")
 
         return [
             python_executable,
-            "-u",  # Unbuffered stdout/stderr
+            "-m",
             self.config.entrypoint,
             "--port", str(self.port)
         ]
+
+    def _get_agent_execution_cwd(self) -> str:
+        """Returns the parent directory of the agent, for package resolution."""
+        return os.path.dirname(self.agent_abs_path)

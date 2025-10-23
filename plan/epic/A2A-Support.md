@@ -126,3 +126,28 @@ This final phase ensures all the pieces work together in the running application
         3.  **Test Case 1 (ADK Agent):** Start the `greeting_agent`. Verify it works as before.
         4.  **Test Case 2 (A2A Agent):** Start the `dice_agent_rest`. Verify it installs dependencies from `pyproject.toml` and starts successfully.
         5.  Stop both agents and verify they terminate cleanly.
+
+### Phase 6: Debugging and Verification
+
+This phase documents the debugging process for the A2A agent integration.
+
+-   **Summary of Progress:**
+    -   The Dual-Runner architecture (Phases 1-4) has been fully implemented.
+    -   The `gallery.config.yaml` is correctly configured to identify `dice_agent_rest` as an `a2a` agent.
+    -   The `A2AAgentRunner` now uses the correct execution strategy (`python -m <package_name>`) and runs from the appropriate parent directory to ensure Python's import resolution works correctly.
+    -   Multiple `ImportError` issues within the `dice_agent_rest` sample agent itself have been identified and corrected by switching to relative imports.
+
+-   **Current Blocker:**
+    -   **Issue:** The `dice_agent_rest` agent fails to start with the error: `[Errno 2] No such file or directory: '.../.venv/bin/uv'`.
+    -   **Root Cause:** This indicates that the `pip install uv` command, which runs during the initial virtual environment setup in the `BaseAgentRunner`, is failing silently. The error is not being captured or logged, preventing diagnosis.
+
+-   **Debugging Steps Taken:**
+    1.  **Manual Execution:** Confirmed that the agent *can* be started manually from the command line using the corrected execution strategy, proving the agent's code is now valid.
+    2.  **Logging Enhancement (Attempt 1):** Added a `print()` statement to the asynchronous `_read_pip_stream` function. This was ineffective as the error is not a simple log line.
+    3.  **Error Capturing (Attempt 2):** Modified the `BaseAgentRunner` to use `proc.communicate()` to synchronously capture the `stdout` and `stderr` of the `pip install uv` command. This was intended to raise an exception containing the full error message from `pip`.
+
+-   **Current State:**
+    -   The synchronous error capturing did not expose the underlying `pip` error as expected. The `FileNotFoundError` for the `uv` executable persists.
+
+-   **Next Step:**
+    -   The immediate priority is to diagnose the silent failure of the `pip install uv` command. The current error capturing mechanism is still insufficient. A more direct debugging approach is needed, potentially involving adding more verbose logging to the `subprocess` call itself or temporarily replacing the `pip install` command with a simpler command to test the venv's `python_executable`.
