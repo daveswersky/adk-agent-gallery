@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { ChatMessage, RequestRecord, HttpError } from '../types';
+import { ChatMessage, RequestRecord, HttpError, Agent } from '../types';
 import { API_BASE_URL } from '../config';
 
 // This type is now only used by the UI component
@@ -32,14 +32,43 @@ const fileToBase64 = (file: File): Promise<string> => {
 class Session {
     public sessionId: string;
     private agentId: string;
+    private agentName: string;
+    private agentType: 'adk' | 'a2a';
+    private agentUrl?: string;
     private userId: string;
     public history: ChatMessage[] = [];
     public requestHistory: RequestRecord[] = [];
 
-    constructor(agentId: string) {
+    constructor(agentId: string, agentName: string, agentType: 'adk' | 'a2a', agentUrl?: string) {
         this.sessionId = uuidv4();
         this.agentId = agentId;
+        this.agentName = agentName;
+        this.agentType = agentType;
+        this.agentUrl = agentUrl;
         this.userId = "forusone";
+
+        if (this.agentType === 'a2a') {
+            this.createA2ASession();
+        }
+    }
+
+    private async createA2ASession(): Promise<void> {
+        const url = `${this.agentUrl}/apps/${this.agentName}/users/${this.userId}/sessions/${this.sessionId}`;
+        const options = {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        };
+        const request = new Request(url, options);
+        try {
+            const response = await fetch(request);
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error("Failed to create A2A session:", errorText);
+                throw new HttpError(`Failed to create session: ${response.statusText}`, response.status);
+            }
+        } catch (error) {
+            console.error("Error creating A2A session:", error);
+        }
     }
 
     private async recordRequest(request: Request, response: Response, responseBody: string): Promise<void> {
@@ -89,7 +118,10 @@ class Session {
     }
 
     async runTurn(prompt: string, file: File | null = null): Promise<string> {
-        const url = `${API_BASE_URL}/run_turn`;
+        const url = this.agentType === 'a2a' ? `${this.agentUrl}/run` : `${API_BASE_URL}/run_turn`;
+        if (!url) {
+            throw new Error("Agent URL is not available.");
+        }
         
         let historyPrompt = prompt;
         if (file) {
@@ -98,10 +130,14 @@ class Session {
             historyPrompt += `\n[File attached: ${file.name}]`;
         }
 
-        const body = {
-            agent_name: this.agentId,
-            prompt: prompt,
-        };
+        const body = this.agentType === 'a2a'
+            ? {
+                appName: this.agentName,
+                userId: this.userId,
+                sessionId: this.sessionId,
+                newMessage: { parts: [{ text: prompt }] }
+              }
+            : { agent_name: this.agentId, prompt: prompt };
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutes
@@ -129,7 +165,7 @@ class Session {
             }
 
             const responseData = await response.json();
-            const agentResponse = responseData.response;
+            const agentResponse = this.agentType === 'a2a' ? responseData.text : responseData.response;
 
             this.history.push({ role: 'model', content: agentResponse });
             

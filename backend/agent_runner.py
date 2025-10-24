@@ -14,7 +14,6 @@ class AgentRunner(BaseAgentRunner):
 
     def __init__(self, agent_path: str, agent_abs_path: str, port: int, config: AgentConfig):
         super().__init__(agent_path, agent_abs_path, port, config)
-        self.event_protocol: Optional[asyncio.Protocol] = None # Specific to ADK agents for now
 
     def _get_dependency_install_command(self) -> List[str]:
         """Returns the command to install dependencies from requirements.txt."""
@@ -32,24 +31,19 @@ class AgentRunner(BaseAgentRunner):
             return [uv_executable, "pip", "install", "-r", host_requirements_path]
 
 
-    def _get_agent_execution_command(self) -> List[str]:
+    def _get_agent_execution_command(self, event_pipe_fd: int) -> List[str]:
         """Returns the command to execute the generic agent_host.py for an ADK agent."""
         venv_path = os.path.join(self.agent_abs_path, ".venv")
         python_executable = os.path.join(venv_path, "bin", "python")
         agent_host_script = os.path.abspath("backend/agent_host.py")
 
-        # Note: Event pipe is not handled in the base class start() method yet.
-        # This will need to be refactored if we want to generalize it.
-        # For now, we focus on getting the process running.
-        # read_fd, write_fd = os.pipe() 
-
         return [
             python_executable, 
             "-u",
             agent_host_script, 
-            "--agent-path", self.agent_path, 
+            "--agent-path", self.agent_abs_path, 
             "--port", str(self.port),
-            # "--event-pipe-fd", str(write_fd), # TODO: Refactor event pipe
+            "--event-pipe-fd", str(event_pipe_fd),
             "--verbose"
         ]
 

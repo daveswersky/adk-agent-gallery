@@ -129,25 +129,54 @@ This final phase ensures all the pieces work together in the running application
 
 ### Phase 6: Debugging and Verification
 
-This phase documents the debugging process for the A2A agent integration.
+This phase documents the extensive debugging process undertaken to get the `dice_agent_rest` A2A sample agent running within the gallery.
 
--   **Summary of Progress:**
-    -   The Dual-Runner architecture (Phases 1-4) has been fully implemented.
-    -   The `gallery.config.yaml` is correctly configured to identify `dice_agent_rest` as an `a2a` agent.
-    -   The `A2AAgentRunner` now uses the correct execution strategy (`python -m <package_name>`) and runs from the appropriate parent directory to ensure Python's import resolution works correctly.
-    -   Multiple `ImportError` issues within the `dice_agent_rest` sample agent itself have been identified and corrected by switching to relative imports.
+-   **Summary of Progress & Resolutions:**
+    -   **Dual-Runner Architecture:** The core backend re-architecture (Phases 1-4) was successfully implemented.
+    -   **Python Module Execution:** Resolved multiple `ImportError` issues by correcting the agent's internal imports to be relative and modifying the `A2AAgentRunner` to execute the agent as a Python module from the correct directory.
+    -   **Agent Configuration:** Fixed a critical bug in `main.py` where the agent's configuration was being looked up with the wrong key (basename vs. full path).
+    -   **Dependency Installation:** Resolved a persistent and silent failure in the `pip install uv` command by modifying the `BaseAgentRunner` to create a fully "activated" virtual environment for the subprocess.
+    -   **ADK Agent Discovery:** Fixed a `ValueError: No root_agent found` by refactoring `agent.py` to expose the agent instance as a global `root_agent` variable.
+    -   **ADK Server Setup:** Refactored the `dice_agent_rest`'s `__main__.py` to use the standard `get_fast_api_app` helper, which correctly sets up the required ADK routes.
+    -   **Frontend/Backend Communication:** A multi-step debugging process, confirmed with `curl`, was undertaken to align the frontend's requests with the ADK server's expectations:
+        1.  Added CORS middleware to the agent's FastAPI app to fix `OPTIONS` request failures.
+        2.  Enabled the ADK's session management endpoints by adding the `session_service_uri` to the `get_fast_api_app` call.
+        3.  Diagnosed that `createSession: true` was not a valid mechanism and that an explicit session creation call is required.
+        4.  Refactored the frontend `sessionService` to make an explicit `POST` request to the RESTful session creation endpoint (e.g., `/apps/.../sessions/...`) in the `Session` constructor.
+        5.  Corrected the `appName` in the request body to use the agent's simple name (e.g., `dice_agent_rest`) instead of its full path.
 
 -   **Current Blocker:**
-    -   **Issue:** The `dice_agent_rest` agent fails to start with the error: `[Errno 2] No such file or directory: '.../.venv/bin/uv'`.
-    -   **Root Cause:** This indicates that the `pip install uv` command, which runs during the initial virtual environment setup in the `BaseAgentRunner`, is failing silently. The error is not being captured or logged, preventing diagnosis.
-
--   **Debugging Steps Taken:**
-    1.  **Manual Execution:** Confirmed that the agent *can* be started manually from the command line using the corrected execution strategy, proving the agent's code is now valid.
-    2.  **Logging Enhancement (Attempt 1):** Added a `print()` statement to the asynchronous `_read_pip_stream` function. This was ineffective as the error is not a simple log line.
-    3.  **Error Capturing (Attempt 2):** Modified the `BaseAgentRunner` to use `proc.communicate()` to synchronously capture the `stdout` and `stderr` of the `pip install uv` command. This was intended to raise an exception containing the full error message from `pip`.
-
--   **Current State:**
-    -   The synchronous error capturing did not expose the underlying `pip` error as expected. The `FileNotFoundError` for the `uv` executable persists.
+    -   **Issue:** The agent now processes requests successfully, but the response appears as a blank message in the UI.
+    -   **Root Cause:** The A2A agent's `/run` endpoint returns a JSON array of event objects. The final text response is nested within the last event in this array. The frontend's `sessionService` is attempting to parse the response with `responseData.text`, which is incorrect for this structure.
 
 -   **Next Step:**
-    -   The immediate priority is to diagnose the silent failure of the `pip install uv` command. The current error capturing mechanism is still insufficient. A more direct debugging approach is needed, potentially involving adding more verbose logging to the `subprocess` call itself or temporarily replacing the `pip install` command with a simpler command to test the venv's `python_executable`.
+    -   The final fix is to modify the `runTurn` method in `frontend/services/sessionService.ts`. The code needs to be updated to correctly parse the JSON array, access the last event, and extract the text from its `content.parts` array.
+
+### Phase 7: Frontend Session Refactoring
+
+To address the growing conditional logic in `sessionService.ts` and create a more maintainable design, a refactoring of the frontend session management will be undertaken.
+
+-   **Step 7.1: Create `BaseSession` Abstract Class**
+    -   **File:** `frontend/services/baseSession.ts` (New file)
+    -   **Action:** Create an abstract class named `BaseSession` to contain all common session logic (e.g., `sessionId`, `history`, `recordRequest`, `recordError`).
+    -   **Abstract Methods:** Define an abstract `runTurn` method that concrete classes must implement.
+
+-   **Step 7.2: Create `AdkSession` Concrete Class**
+    -   **File:** `frontend/services/adkSession.ts` (New file)
+    -   **Action:** Create an `AdkSession` class that extends `BaseSession`.
+    -   **Implementation:** Implement the `runTurn` method with the existing logic for communicating with the gallery's central `/run_turn` endpoint.
+
+-   **Step 7.3: Create `A2aSession` Concrete Class**
+    -   **File:** `frontend/services/a2aSession.ts` (New file)
+    -   **Action:** Create an `A2aSession` class that extends `BaseSession`.
+    -   **Implementation:**
+        -   The constructor will be responsible for making the explicit `POST` request to the agent's RESTful session creation endpoint (e.g., `/apps/.../sessions/...`).
+        -   The `runTurn` method will implement the logic for communicating directly with the agent's `/run` endpoint, including constructing the complex request body and parsing the event array from the response.
+
+-   **Step 7.4: Update `SessionManager` to be a Factory**
+    -   **File:** `frontend/services/sessionManager.ts`
+    -   **Action:** Modify the `getSession` method to act as a factory. Based on the `agent.type`, it will instantiate and return either an `AdkSession` or an `A2aSession`. The return type will be `BaseSession`.
+
+-   **Step 7.5: Update `ChatInterface.tsx`**
+    -   **File:** `frontend/components/ChatInterface.tsx`
+    -   **Action:** Change the type of the `currentSession` state variable to `BaseSession | null`. No other changes should be necessary, as the component will interact with the abstract `BaseSession` interface.

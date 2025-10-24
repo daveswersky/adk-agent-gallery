@@ -116,6 +116,7 @@ async def get_agents():
                     "id": os.path.join(root.get("path"), agent_id), # Use full path for ID
                     "name": agent_id,
                     "description": description,
+                    "type": get_agent_config(os.path.join(root.get("path"), agent_id)).type,
                 })
     return agents
 
@@ -306,8 +307,7 @@ async def start_agent_process(agent_path: str, port: int):
             raise FileNotFoundError(f"Agent directory '{agent_path}' not found.")
 
         # Runner Factory
-        agent_id = os.path.basename(agent_path)
-        config = get_agent_config(agent_id)
+        config = get_agent_config(agent_path)
 
         if config.type == "a2a":
             runner = A2AAgentRunner(
@@ -417,6 +417,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 asyncio.create_task(stop_agent_process(agent_name))
             elif action == "stop_all":
                 asyncio.create_task(stop_all_agents())
+            elif command.get("type") == "agent_event":
+                await manager.broadcast(json.dumps(command))
 
     except WebSocketDisconnect:
         # In the context of the E2E tests, a disconnect signifies the end of a

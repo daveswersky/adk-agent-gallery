@@ -138,14 +138,21 @@ class BaseAgentRunner(ABC):
             )
             stdout, stderr = await proc.communicate()
 
-            if proc.returncode != 0:
-                error_message = stderr.decode().strip() if stderr else stdout.decode().strip()
-                raise RuntimeError(f"Failed to install uv: {error_message}")
+            if not os.path.exists(uv_executable):
+                stdout_str = stdout.decode().strip()
+                stderr_str = stderr.decode().strip()
+                raise RuntimeError(
+                    f"Installation of 'uv' failed. The executable was not found at {uv_executable} after running pip. "
+                    f"pip exit code: {proc.returncode}. "
+                    f"stdout: {stdout_str}. "
+                    f"stderr: {stderr_str}."
+                )
 
         # 2. Install dependencies
         await manager.broadcast(json.dumps({"type": "status", "agent": self.agent_path, "status": "installing_dependencies"}))
         env = os.environ.copy()
         env["VIRTUAL_ENV"] = venv_path
+        env["PORT"] = str(self.port)
 
         install_command = self._get_dependency_install_command()
 

@@ -21,6 +21,7 @@ export interface Agent {
   name: string;
   description: string;
   status: AgentStatus;
+  type: 'adk' | 'a2a';
   url?: string;
 }
 

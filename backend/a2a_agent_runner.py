@@ -33,9 +33,15 @@ class A2AAgentRunner(BaseAgentRunner):
             python_executable,
             "-m",
             self.config.entrypoint,
-            "--port", str(self.port)
         ]
 
     def _get_agent_execution_cwd(self) -> str:
         """Returns the parent directory of the agent, for package resolution."""
         return os.path.dirname(self.agent_abs_path)
+
+    async def run_turn(self, prompt: str):
+        """A2A agents handle their own turns. This method is a placeholder."""
+        # This should not be called for A2A agents.
+        # The frontend should communicate directly with the agent's server.
+        print("WARNING: A2AAgentRunner.run_turn was called. This indicates a misconfiguration.")
+        return {"response": "Error: A2A agent turn management is not handled by the gallery host."}

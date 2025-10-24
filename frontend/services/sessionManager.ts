@@ -4,13 +4,13 @@ import { Agent } from '../types';
 class SessionManager {
     public sessions: Map<string, Session> = new Map();
 
-    async getSession(agentName: string): Promise<Session> {
-        if (this.sessions.has(agentName)) {
-            return this.sessions.get(agentName)!;
+    async getSession(agent: Agent): Promise<Session> {
+        if (this.sessions.has(agent.id)) {
+            return this.sessions.get(agent.id)!;
         }
 
-        const newSession = new Session(agentName);
-        this.sessions.set(agentName, newSession);
+        const newSession = new Session(agent.id, agent.name, agent.type, agent.url);
+        this.sessions.set(agent.id, newSession);
         return newSession;
     }
 
