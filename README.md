@@ -33,6 +33,14 @@ The backend is a Python application built with **FastAPI** that manages the agen
 
 ## How to Run
 
+### Prerequisites
+
+After cloning the repository, initialize and update the submodules:
+
+```bash
+git submodule update --init --recursive
+```
+
 ### Backend Setup
 
 1.  **Create a Virtual Environment**: From the project root, create a Python virtual environment.
