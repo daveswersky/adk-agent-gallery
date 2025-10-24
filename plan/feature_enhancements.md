@@ -4,7 +4,8 @@ This document is a running list of ideas for future enhancements to the Agent Ga
 
 ## Epics
 
-- [A2A support](./epic/A2A-Support.md)
+- ~~[A2A support](./epic/A2A-Support.md)~~
+  - **Status: Implemented & Merged**
   - **Effort Assessment: EPIC**
   - The first phase of this epic involves a backend re-architecture to enable the gallery to run self-contained, "self-hosted" agents (like the A2A samples) which are required for agent-to-agent communication.
   - **Architecture:** A "dual-runner" architecture will be implemented where the host remains responsible for the full lifecycle of all agents, including dependency management. A new `A2AAgentRunner` will be created to handle self-hosted agents, while the existing `AgentRunner` will manage the default "raw" ADK agents.

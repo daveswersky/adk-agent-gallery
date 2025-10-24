@@ -1,0 +1,141 @@
+agent_roots:
+  - name: "Core Agents"
+    path: "agents"
+    exclude:
+      - "adk-samples"
+      - "a2a-samples"
+  - name: "ADK Samples"
+    path: "agents/adk-samples/python/agents"
+  - name: "A2A Samples"
+    path: "agents/a2a-samples/samples/python/agents"
+
+agent_configs:
+  "agents/a2a-samples/samples/python/agents/a2a_mcp":
+    type: "a2a"
+    dependencies: "pyproject.toml"
+    entrypoint: "a2a_mcp"
+  "agents/a2a-samples/samples/python/agents/a2a_telemetry":
+    type: "a2a"
+    dependencies: "pyproject.toml"
+    entrypoint: "a2a_telemetry"
+  "agents/a2a-samples/samples/python/agents/a2a-mcp-without-framework":
+    type: "a2a"
+    dependencies: "pyproject.toml"
+    entrypoint: "a2a-mcp-without-framework"
+  "agents/a2a-samples/samples/python/agents/adk_cloud_run":
+    type: "a2a"
+    dependencies: "pyproject.toml"
+    entrypoint: "adk_cloud_run"
+  "agents/a2a-samples/samples/python/agents/adk_expense_reimbursement":
+    type: "a2a"
+    dependencies: "pyproject.toml"
+    entrypoint: "adk_expense_reimbursement"
+  "agents/a2a-samples/samples/python/agents/adk_facts":
+    type: "a2a"
+    dependencies: "pyproject.toml"
+    entrypoint: "adk_facts"
+  "agents/a2a-samples/samples/python/agents/ag2":
+    type: "a2a"
+    dependencies: "pyproject.toml"
+    entrypoint: "ag2"
+  "agents/a2a-samples/samples/python/agents/airbnb_planner_multiagent":
+    type: "a2a"
+    dependencies: "pyproject.toml"
+    entrypoint: "airbnb_planner_multiagent"
+  "agents/a2a-samples/samples/python/agents/analytics":
+    type: "a2a"
+    dependencies: "pyproject.toml"
+    entrypoint: "analytics"
+  "agents/a2a-samples/samples/python/agents/any_agent_adversarial_multiagent":
+    type: "a2a"
+    dependencies: "pyproject.toml"
+    entrypoint: "any_agent_adversarial_multiagent"
+  "agents/a2a-samples/samples/python/agents/azureaifoundry_sdk":
+    type: "a2a"
+    dependencies: "pyproject.toml"
+    entrypoint: "azureaifoundry_sdk"
+  "agents/a2a-samples/samples/python/agents/beeai-chat":
+    type: "a2a"
+    dependencies: "pyproject.toml"
+    entrypoint: "beeai-chat"
+  "agents/a2a-samples/samples/python/agents/birthday_planner_adk":
+    type: "a2a"
+    dependencies: "pyproject.toml"
+    entrypoint: "birthday_planner_adk"
+  "agents/a2a-samples/samples/python/agents/content_planner":
+    type: "a2a"
+    dependencies: "pyproject.toml"
+    entrypoint: "content_planner"
+  "agents/a2a-samples/samples/python/agents/crewai":
+    type: "a2a"
+    dependencies: "pyproject.toml"
+    entrypoint: "crewai"
+  "agents/a2a-samples/samples/python/agents/dice_agent_grpc":
+    type: "a2a"
+    dependencies: "pyproject.toml"
+    entrypoint: "dice_agent_grpc"
+  "agents/a2a-samples/samples/python/agents/dice_agent_rest":
+    type: "a2a"
+    dependencies: "pyproject.toml"
+    entrypoint: "dice_agent_rest"
+  "agents/a2a-samples/samples/python/agents/github-agent":
+    type: "a2a"
+    dependencies: "pyproject.toml"
+    entrypoint: "github-agent"
+  "agents/a2a-samples/samples/python/agents/headless_agent_auth":
+    type: "a2a"
+    dependencies: "pyproject.toml"
+    entrypoint: "headless_agent_auth"
+  "agents/a2a-samples/samples/python/agents/helloworld":
+    type: "a2a"
+    dependencies: "pyproject.toml"
+    entrypoint: "helloworld"
+  "agents/a2a-samples/samples/python/agents/langgraph":
+    type: "a2a"
+    dependencies: "pyproject.toml"
+    entrypoint: "langgraph"
+  "agents/a2a-samples/samples/python/agents/llama_index_file_chat":
+    type: "a2a"
+    dependencies: "pyproject.toml"
+    entrypoint: "llama_index_file_chat"
+  "agents/a2a-samples/samples/python/agents/marvin":
+    type: "a2a"
+    dependencies: "pyproject.toml"
+    entrypoint: "marvin"
+  "agents/a2a-samples/samples/python/agents/mindsdb":
+    type: "a2a"
+    dependencies: "pyproject.toml"
+    entrypoint: "mindsdb"
+  "agents/a2a-samples/samples/python/agents/number_guessing_game":
+    type: "a2a"
+    dependencies: "pyproject.toml"
+    entrypoint: "number_guessing_game"
+  "agents/a2a-samples/samples/python/agents/semantickernel":
+    type: "a2a"
+    dependencies: "pyproject.toml"
+    entrypoint: "semantickernel"
+  "agents/a2a-samples/samples/python/agents/travel_planner_agent":
+    type: "a2a"
+    dependencies: "pyproject.toml"
+    entrypoint: "travel_planner_agent"
+  "agents/a2a-samples/samples/python/agents/veo_video_gen":
+    type: "a2a"
+    dependencies: "pyproject.toml"
+    entrypoint: "veo_video_gen"
+
+# Configuration for agent-specific environment variables
+agents:
+  RAG:
+    description: "Uses Vertex AI and requires specific GCP project and location."
+    environment:
+      # Use Vertex AI instead of API Keys
+      GOOGLE_GENAI_USE_VERTEXAI: "TRUE"
+      # Unset API keys to force Application Default Credentials
+      UNSET_ENV_VARS:
+        - GOOGLE_API_KEY
+        - GEMINI_API_KEY
+      # Project and Location for Vertex AI
+      GOOGLE_CLOUD_PROJECT: "${GCP_PROJECT_ID}"
+      GOOGLE_CLOUD_LOCATION: "${GCP_LOCATION}"
+      # Agent-specific values
+      RAG_CORPUS: "${RAG_CORPUS_ID}"
