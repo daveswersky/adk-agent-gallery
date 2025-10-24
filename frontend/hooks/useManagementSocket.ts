@@ -96,7 +96,7 @@ export const useManagementSocket = ({ onAgentStarted }: { onAgentStarted: (agent
           throw new Error(`Server responded with status: ${response.status}`);
         }
         const data = await response.json();
-        const agentsWithStatus = data.map((agent: Omit<Agent, 'status'>) => ({
+        const agentsWithStatus = data.map((agent: any) => ({
           ...agent,
           status: AgentStatus.STOPPED,
         }));

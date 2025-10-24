@@ -110,6 +110,11 @@ This document is a running list of ideas for future enhancements to the Agent Ga
     - **Agent-level API:** The agent's internal web server (in `agent_host.py`) needs a new endpoint to retrieve artifacts by name from the `ArtifactService`.
     - **Backend Proxy:** The main backend (`main.py`) needs a new endpoint that proxies artifact download requests from the frontend to the correct agent subprocess.
     - **Frontend:** The chat UI needs to be updated to recognize `artifact://` URIs in agent responses and render them as clickable download links pointing to the new backend proxy endpoint.
+- [Hot-Reload Configuration](./feature/Hot-Reload-Config.md): Automatically reload the agent list when `gallery.config.yaml` is modified.
+  - **Effort Assessment: FEATURE**
+  - This is a developer experience enhancement that removes the need to restart the backend server after changing the configuration.
+  - **Backend:** Requires adding a file-watching library (like `watchfiles`) to monitor `gallery.config.yaml`. A background task will be started with the server to watch for changes. When a change is detected, the backend will re-parse the configuration, re-discover the agents, and broadcast a new `agents_update` message to all connected clients via the WebSocket.
+  - **Frontend:** The `useManagementSocket.ts` hook will be updated to handle the new `agents_update` message. Upon receiving this message, it will update the `agents` state with the new list, preserving the status of any agents that are currently running.
 
 
 ## TASKS

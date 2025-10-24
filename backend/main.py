@@ -87,36 +87,38 @@ async def get_agents():
             print(f"Warning: Agent directory not found: {agents_dir}")
             continue
 
-        for agent_id in os.listdir(agents_dir):
-            if agent_id in exclusions or agent_id.startswith('.'):
+        for agent_name in os.listdir(agents_dir):
+            if agent_name in exclusions or agent_name.startswith('.'):
                 continue
 
-            agent_path = os.path.join(agents_dir, agent_id)
+            agent_path = os.path.join(agents_dir, agent_name)
             if os.path.isdir(agent_path):
-                description = f"The {agent_id} agent."  # Default description
+                description = f"The {agent_name} agent."  # Default description
                 
-                module_name = agent_id.replace('-', '_')
-                nested_agent_path = os.path.join(agent_path, module_name)
-                if not os.path.exists(nested_agent_path):
-                    nested_agent_path = os.path.join(agent_path, agent_id)
+                # Construct the full agent ID to look up its type
+                agent_id = os.path.join(root.get("path"), agent_name)
+                agent_type = get_agent_config(agent_id).type
 
-                agent_py_path = os.path.join(nested_agent_path, "agent.py")
-
-                if os.path.exists(agent_py_path):
+                # For ADK agents, attempt to read a more specific description from the agent's code
+                if agent_type == "adk":
                     try:
+                        agent_py_path = _get_agent_py_path(agent_path)
                         with open(agent_py_path, "r") as f:
                             content = f.read()
                             match = re.search(r'description=\(?\s*["\']([^"\']+)["\']', content, re.DOTALL)
                             if match:
                                 description = match.group(1).strip()
+                    except HTTPException:
+                        # This is expected for A2A agents, so we just log a warning.
+                        print(f"Warning: Could not find agent.py for ADK agent '{agent_name}'. Using default description.")
                     except Exception as e:
-                        print(f"Could not read or parse {agent_py_path}: {e}")
+                        print(f"Could not read description for {agent_name}: {e}")
 
                 agents.append({
-                    "id": os.path.join(root.get("path"), agent_id), # Use full path for ID
-                    "name": agent_id,
+                    "id": agent_id,
+                    "name": agent_name,
                     "description": description,
-                    "type": get_agent_config(os.path.join(root.get("path"), agent_id)).type,
+                    "type": agent_type,
                 })
     return agents
 
