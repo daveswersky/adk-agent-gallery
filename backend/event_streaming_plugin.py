@@ -53,12 +53,11 @@ class EventStreamingPlugin(BasePlugin):
     async def after_tool_callback(
         self, tool, tool_args, tool_context, result
     ) -> None:
-        tool_result_payload = result
         if isinstance(tool, AgentTool):
-            # The result of an agent transfer is a raw string. We'll wrap it
-            # in a dictionary to make it consistent with other tool results.
-            tool_result_payload = {"result": str(result)}
-        elif hasattr(result, "to_dict"):
+            return  # Suppress event for agent-to-agent transfers
+
+        tool_result_payload = result
+        if hasattr(result, "to_dict"):
             tool_result_payload = result.to_dict()
 
         self._send_event(
