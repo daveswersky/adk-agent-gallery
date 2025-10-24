@@ -205,5 +205,5 @@ class BaseAgentRunner(ABC):
     async def stop(self):
         """Stops the agent subprocess."""
         if self.process and self.process.returncode is None:
-            self.process.terminate()
+            self.process.kill()
             await self.process.wait()
