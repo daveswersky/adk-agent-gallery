@@ -31,7 +31,12 @@ const AgentListItem: React.FC<{
       onClick={() => onSelect(agent)}
       className={`p-2 rounded-md flex items-center justify-between transition-colors duration-200 cursor-pointer ${isActive ? 'bg-adk-accent/20' : 'hover:bg-adk-dark-3'}`}
     >
-      <span className="font-mono text-adk-text truncate">{agent.name}</span>
+      <div className="flex items-center space-x-2 truncate">
+        <span className="font-mono text-adk-text truncate">{agent.name}</span>
+        {agent.type === 'a2a' && (
+          <span className="bg-blue-500/20 text-blue-300 text-xs font-mono px-2 py-1 rounded-md">A2A</span>
+        )}
+      </div>
       <div className="flex items-center space-x-2">
         <button
           onClick={(e) => { e.stopPropagation(); onViewCode(agent.id); }}

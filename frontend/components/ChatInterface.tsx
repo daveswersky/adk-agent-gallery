@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import type { Agent, ChatMessage, AgentEvent } from '../types';
-import Session, { LoadingStatus } from '../services/sessionService';
+import { BaseSession } from '../services/baseSession';
 import { sessionManager } from '../services/sessionManager';
 import { SendIcon, UserIcon, BotIcon, SpinnerIcon, TransferIcon, FileUploadIcon, ToolIcon, BookOpenIcon } from './icons';
 import { AgentStatus } from '../types';
@@ -18,6 +18,12 @@ interface ChatInterfaceProps {
   readmeContent: string | null;
   isReadmeLoading: boolean;
 }
+
+// This type is now only used by the UI component
+export type LoadingStatus = {
+    type: 'thinking' | 'tool_use';
+    message: string;
+};
 
 const ChatBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
     const isUser = message.role === 'user';
@@ -70,7 +76,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, agentEvents
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loadingStatus, setLoadingStatus] = useState<LoadingStatus | null>(null);
-  const [currentSession, setCurrentSession] = useState<Session | null>(null);
+  const [currentSession, setCurrentSession] = useState<BaseSession | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [processedEventsIndex, setProcessedEventsIndex] = useState(0);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -83,7 +89,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, agentEvents
         if (agent && agent.status === AgentStatus.RUNNING) {
             setLoadingStatus({ type: 'thinking', message: 'Initializing session...' });
             try {
-                const session = await sessionManager.getSession(agent.id);
+                const session = await sessionManager.getSession(agent);
                 setCurrentSession(session);
                 setMessages([...session.history]);
             } catch (error) {
@@ -131,15 +137,15 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, agentEvents
         continue;
       }
 
-      if (eventName === 'before_tool_callback') {
-        const toolName = eventData.tool_name;
+      if (eventName === 'before_tool_call') {
+        const toolName = eventData.tool_call.name;
         setLoadingStatus({ type: 'tool_use', message: `Using ${toolName} tool...` });
-        const toolArgs = JSON.stringify(eventData.tool_args, null, 2);
+        const toolArgs = JSON.stringify(eventData.tool_call.args, null, 2);
         currentSession.history.push({ role: 'tool', content: `Calling tool: ${toolName}\nArguments:\n${toolArgs}` });
         setMessages([...currentSession.history]);
-      } else if (eventName === 'after_tool_callback') {
+      } else if (eventName === 'after_tool_call') {
         setLoadingStatus({ type: 'thinking', message: 'Thinking...' });
-        const toolName = eventData.tool_name;
+        const toolName = eventData.tool_call.name;
         const toolResult = JSON.stringify(eventData.tool_result, null, 2);
         currentSession.history.push({ role: 'tool', content: `Tool ${toolName} returned:\n${toolResult}` });
         setMessages([...currentSession.history]);

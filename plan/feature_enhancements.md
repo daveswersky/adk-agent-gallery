@@ -6,13 +6,10 @@ This document is a running list of ideas for future enhancements to the Agent Ga
 
 - [A2A support](./epic/A2A-Support.md)
   - **Effort Assessment: EPIC**
-  - Implementing Agent-to-Agent communication would require a significant architectural change. The current architecture isolates each agent in its own subprocess with no direct communication channels.
-  - Key challenges include:
-    - **Communication Infrastructure:** Requires designing and building a new system for inter-agent message passing, either through the central backend acting as a broker or by implementing a service discovery mechanism for direct agent-to-agent HTTP calls.
-    - **Core Agent Logic (`google-adk`):** The `google-adk` `Runner` would need fundamental changes to handle and process incoming events/messages from other agents, not just from the user.
-    - **API and State Management:** The backend's concept of a "turn" would need to evolve to manage multi-agent conversational state.
-    - **Frontend UI:** The UI would require substantial work to visualize and manage A2A interactions (e.g., grouping agents that are communicating).
-  - This epic would need to be broken down into smaller, more manageable features.
+  - The first phase of this epic involves a backend re-architecture to enable the gallery to run self-contained, "self-hosted" agents (like the A2A samples) which are required for agent-to-agent communication.
+  - **Architecture:** A "dual-runner" architecture will be implemented where the host remains responsible for the full lifecycle of all agents, including dependency management. A new `A2AAgentRunner` will be created to handle self-hosted agents, while the existing `AgentRunner` will manage the default "raw" ADK agents.
+  - **Configuration:** A new `agent_configs` section in `gallery.config.yaml` will provide a centralized way to define an agent's `type` (e.g., `a2a`), its `dependencies` file (e.g., `pyproject.toml`), and its `entrypoint` script (e.g., `__main__.py`). This ensures a consistent and explicit configuration model.
+  - Subsequent phases will build on this foundation to implement the actual message-passing infrastructure.
 - [Container Mode](./epic/Container-Mode.md)
   - **Effort Assessment: EPIC**
   - This represents a major architectural addition, creating a parallel agent execution engine using Docker.
@@ -113,6 +110,11 @@ This document is a running list of ideas for future enhancements to the Agent Ga
     - **Agent-level API:** The agent's internal web server (in `agent_host.py`) needs a new endpoint to retrieve artifacts by name from the `ArtifactService`.
     - **Backend Proxy:** The main backend (`main.py`) needs a new endpoint that proxies artifact download requests from the frontend to the correct agent subprocess.
     - **Frontend:** The chat UI needs to be updated to recognize `artifact://` URIs in agent responses and render them as clickable download links pointing to the new backend proxy endpoint.
+- [Hot-Reload Configuration](./feature/Hot-Reload-Config.md): Automatically reload the agent list when `gallery.config.yaml` is modified.
+  - **Effort Assessment: FEATURE**
+  - This is a developer experience enhancement that removes the need to restart the backend server after changing the configuration.
+  - **Backend:** Requires adding a file-watching library (like `watchfiles`) to monitor `gallery.config.yaml`. A background task will be started with the server to watch for changes. When a change is detected, the backend will re-parse the configuration, re-discover the agents, and broadcast a new `agents_update` message to all connected clients via the WebSocket.
+  - **Frontend:** The `useManagementSocket.ts` hook will be updated to handle the new `agents_update` message. Upon receiving this message, it will update the `agents` state with the new list, preserving the status of any agents that are currently running.
 
 
 ## TASKS

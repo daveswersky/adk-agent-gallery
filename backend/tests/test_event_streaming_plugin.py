@@ -34,8 +34,8 @@ async def test_before_tool_callback(plugin, mock_pipe):
     event = json.loads(event_str)
     
     assert event["event"] == "before_tool_call"
-    assert event["tool_call"]["name"] == "test_tool"
-    assert event["tool_call"]["args"] == tool_args
+    assert event["data"]["tool_call"]["name"] == "test_tool"
+    assert event["data"]["tool_call"]["args"] == tool_args
 
 @pytest.mark.asyncio
 async def test_after_tool_callback(plugin, mock_pipe):
@@ -50,9 +50,9 @@ async def test_after_tool_callback(plugin, mock_pipe):
     event = json.loads(event_str)
     
     assert event["event"] == "after_tool_call"
-    assert event["tool_call"]["name"] == "test_tool"
-    assert event["tool_call"]["args"] == tool_args
-    assert event["tool_result"] == mock_result.to_dict()
+    assert event["data"]["tool_call"]["name"] == "test_tool"
+    assert event["data"]["tool_call"]["args"] == tool_args
+    assert event["data"]["tool_result"] == mock_result.to_dict()
 
 @pytest.mark.asyncio
 async def test_after_tool_callback_suppresses_agent_tool(plugin, mock_pipe):

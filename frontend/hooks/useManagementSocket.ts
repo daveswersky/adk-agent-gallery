@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Agent, AgentStatus, ServerMessage, AgentEvent, AgentGroup } from '../types';
+import { sessionManager } from '../services/sessionManager';
 
 const MANAGEMENT_URL = 'ws://localhost:8000/ws';
 const AGENTS_URL = 'http://localhost:8000/agents';
@@ -95,7 +96,7 @@ export const useManagementSocket = ({ onAgentStarted }: { onAgentStarted: (agent
           throw new Error(`Server responded with status: ${response.status}`);
         }
         const data = await response.json();
-        const agentsWithStatus = data.map((agent: Omit<Agent, 'status'>) => ({
+        const agentsWithStatus = data.map((agent: any) => ({
           ...agent,
           status: AgentStatus.STOPPED,
         }));
@@ -154,6 +155,7 @@ export const useManagementSocket = ({ onAgentStarted }: { onAgentStarted: (agent
                     case 'stopped':
                     case 'not_running':
                       newStatus = AgentStatus.STOPPED;
+                      sessionManager.clearSession(agentId);
                       break;
                     default:
                       newStatus = agent.status;

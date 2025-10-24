@@ -7,8 +7,10 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict
+from backend.config import AgentConfig
 from pydantic import BaseModel
 import multiprocessing as mp
+from backend.a2a_agent_runner import A2AAgentRunner
 from backend.connection_manager import manager, running_processes, starting_agents, startup_lock
 from backend.agent_runner import AgentRunner
 
@@ -26,7 +28,22 @@ except FileNotFoundError:
 except yaml.YAMLError as e:
     print(f"Error parsing gallery.config.yaml: {e}")
 
+class AgentConfig(BaseModel):
+    """Represents the runtime configuration for a single agent."""
+    type: str = "adk"
+    dependencies: str = "requirements.txt"
+    entrypoint: str = ""
 
+# Parse agent-specific configurations with defaults
+AGENT_CONFIGS: Dict[str, AgentConfig] = {}
+_raw_agent_configs = CONFIG.get("agent_configs", {})
+if isinstance(_raw_agent_configs, dict):
+    for agent_id, config in _raw_agent_configs.items():
+        AGENT_CONFIGS[agent_id] = AgentConfig(**config)
+
+def get_agent_config(agent_id: str) -> AgentConfig:
+    """Returns the specific or default configuration for a given agent."""
+    return AGENT_CONFIGS.get(agent_id, AgentConfig())
 
 app.add_middleware(
     CORSMiddleware,
@@ -47,7 +64,7 @@ async def shutdown_event():
     for agent_name, agent_info in list(running_processes.items()):
         if isinstance(agent_info, dict) and "runner" in agent_info:
             runner = agent_info["runner"]
-            if isinstance(runner, AgentRunner):
+            if isinstance(runner, (AgentRunner, A2AAgentRunner)):
                 print(f"Stopping agent: {agent_name}")
                 await runner.stop()
     running_processes.clear()
@@ -70,35 +87,38 @@ async def get_agents():
             print(f"Warning: Agent directory not found: {agents_dir}")
             continue
 
-        for agent_id in os.listdir(agents_dir):
-            if agent_id in exclusions or agent_id.startswith('.'):
+        for agent_name in os.listdir(agents_dir):
+            if agent_name in exclusions or agent_name.startswith('.'):
                 continue
 
-            agent_path = os.path.join(agents_dir, agent_id)
+            agent_path = os.path.join(agents_dir, agent_name)
             if os.path.isdir(agent_path):
-                description = f"The {agent_id} agent."  # Default description
+                description = f"The {agent_name} agent."  # Default description
                 
-                module_name = agent_id.replace('-', '_')
-                nested_agent_path = os.path.join(agent_path, module_name)
-                if not os.path.exists(nested_agent_path):
-                    nested_agent_path = os.path.join(agent_path, agent_id)
+                # Construct the full agent ID to look up its type
+                agent_id = os.path.join(root.get("path"), agent_name)
+                agent_type = get_agent_config(agent_id).type
 
-                agent_py_path = os.path.join(nested_agent_path, "agent.py")
-
-                if os.path.exists(agent_py_path):
+                # For ADK agents, attempt to read a more specific description from the agent's code
+                if agent_type == "adk":
                     try:
+                        agent_py_path = _get_agent_py_path(agent_path)
                         with open(agent_py_path, "r") as f:
                             content = f.read()
                             match = re.search(r'description=\(?\s*["\']([^"\']+)["\']', content, re.DOTALL)
                             if match:
                                 description = match.group(1).strip()
+                    except HTTPException:
+                        # This is expected for A2A agents, so we just log a warning.
+                        print(f"Warning: Could not find agent.py for ADK agent '{agent_name}'. Using default description.")
                     except Exception as e:
-                        print(f"Could not read or parse {agent_py_path}: {e}")
+                        print(f"Could not read description for {agent_name}: {e}")
 
                 agents.append({
-                    "id": os.path.join(root.get("path"), agent_id), # Use full path for ID
-                    "name": agent_id,
+                    "id": agent_id,
+                    "name": agent_name,
                     "description": description,
+                    "type": agent_type,
                 })
     return agents
 
@@ -288,7 +308,24 @@ async def start_agent_process(agent_path: str, port: int):
         if not os.path.isdir(agent_abs_path):
             raise FileNotFoundError(f"Agent directory '{agent_path}' not found.")
 
-        runner = AgentRunner(agent_path, agent_abs_path, port)
+        # Runner Factory
+        config = get_agent_config(agent_path)
+
+        if config.type == "a2a":
+            runner = A2AAgentRunner(
+                agent_path=agent_path,
+                agent_abs_path=agent_abs_path,
+                port=port,
+                config=config
+            )
+        else: # Default to "adk"
+            runner = AgentRunner(
+                agent_path=agent_path,
+                agent_abs_path=agent_abs_path,
+                port=port,
+                config=config
+            )
+        
         await runner.start()
 
         agent_url = f"http://localhost:{port}"
@@ -299,12 +336,15 @@ async def start_agent_process(agent_path: str, port: int):
             "type": "status",
             "agent": agent_path,
             "status": "running",
-            "pid": runner.process.pid,
+            "pid": runner.process.pid if hasattr(runner, 'process') and runner.process else -1,
             "url": agent_url
         }))
 
-        await runner.process.wait()
-        print(f"--- DEBUG: Process for '{agent_name_for_display}' terminated.")
+        # For ADK agents, we wait for the process to terminate.
+        # For A2A agents, the runner.start() is non-blocking.
+        if hasattr(runner, 'process') and runner.process:
+            await runner.process.wait()
+            print(f"--- DEBUG: Process for '{agent_name_for_display}' terminated.")
 
     except Exception as e:
         error_msg = f"An unexpected error occurred while starting {agent_path}: {e}"
@@ -379,6 +419,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 asyncio.create_task(stop_agent_process(agent_name))
             elif action == "stop_all":
                 asyncio.create_task(stop_all_agents())
+            elif command.get("type") == "agent_event":
+                await manager.broadcast(json.dumps(command))
 
     except WebSocketDisconnect:
         # In the context of the E2E tests, a disconnect signifies the end of a

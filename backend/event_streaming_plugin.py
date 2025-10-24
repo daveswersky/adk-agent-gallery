@@ -46,25 +46,24 @@ class EventStreamingPlugin(BasePlugin):
 
     async def before_tool_callback(self, tool, tool_args, tool_context) -> None:
         self._send_event(
-            "before_tool_callback",
-            {"tool_name": tool.name, "tool_args": tool_args},
+            "before_tool_call",
+            {"tool_call": {"name": tool.name, "args": tool_args}},
         )
 
     async def after_tool_callback(
         self, tool, tool_args, tool_context, result
     ) -> None:
         if isinstance(tool, AgentTool):
-            return
+            return  # Suppress event for agent-to-agent transfers
 
         tool_result_payload = result
         if hasattr(result, "to_dict"):
             tool_result_payload = result.to_dict()
 
         self._send_event(
-            "after_tool_callback",
+            "after_tool_call",
             {
-                "tool_name": tool.name,
-                "tool_args": tool_args,
+                "tool_call": {"name": tool.name, "args": tool_args},
                 "tool_result": tool_result_payload,
             },
         )
