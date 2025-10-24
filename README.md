@@ -47,11 +47,15 @@ git submodule update --init --recursive
     ```bash
     mv example.gallery.config.yaml gallery.config.yaml
     ```
-2.  **Create a Virtual Environment**: From the project root, create a Python virtual environment.
+2.  **Set up your API Key**: Create a file named `.env` in the project root and add your Gemini API key to it:
+    ```
+    GEMINI_API_KEY="YOUR_API_KEY"
+    ```
+3.  **Create a Virtual Environment**: From the project root, create a Python virtual environment.
     ```bash
     python3 -m venv .venv
     ```
-3.  **Activate the Environment**:
+4.  **Activate the Environment**:
     *   On macOS and Linux:
         ```bash
         source .venv/bin/activate
@@ -60,11 +64,11 @@ git submodule update --init --recursive
         ```bash
         .venv\Scripts\activate
         ```
-4.  **Install Dependencies**:
+5.  **Install Dependencies**:
     ```bash
     pip install -r backend/requirements.txt
     ```
-5.  **Run the Backend Server**:
+6.  **Run the Backend Server**:
     ```bash
     uvicorn backend.main:app --reload
     ```
