@@ -43,11 +43,15 @@ git submodule update --init --recursive
 
 ### Backend Setup
 
-1.  **Create a Virtual Environment**: From the project root, create a Python virtual environment.
+1.  **Configure the Gallery**: Rename `example.gallery.config.yaml` to `gallery.config.yaml`.
+    ```bash
+    mv example.gallery.config.yaml gallery.config.yaml
+    ```
+2.  **Create a Virtual Environment**: From the project root, create a Python virtual environment.
     ```bash
     python3 -m venv .venv
     ```
-2.  **Activate the Environment**:
+3.  **Activate the Environment**:
     *   On macOS and Linux:
         ```bash
         source .venv/bin/activate
@@ -56,11 +60,11 @@ git submodule update --init --recursive
         ```bash
         .venv\Scripts\activate
         ```
-3.  **Install Dependencies**:
+4.  **Install Dependencies**:
     ```bash
     pip install -r backend/requirements.txt
     ```
-4.  **Run the Backend Server**:
+5.  **Run the Backend Server**:
     ```bash
     uvicorn backend.main:app --reload
     ```
@@ -81,6 +85,10 @@ git submodule update --init --recursive
     ```
 
 After completing these steps, open a web browser to the URL provided by Vite (usually `http://localhost:5173`).
+
+**Note for Gemini CLI Users:**
+
+If you are using the Gemini CLI to follow these setup instructions, please run the backend and frontend servers in separate, dedicated terminals as the final step. Do not attempt to run them as background or foreground processes within the Gemini CLI itself.
 
 ## Roadmap
 
