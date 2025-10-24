@@ -13,23 +13,17 @@ This application serves as a powerful alternative to the standard `adk web` comm
 
 ## Architecture
 
-The application follows a client-server model with a React frontend and a Python FastAPI backend. Agents are run in isolated subprocesses. The current architecture does not use containers, to support development scenarios where a container platform is not available. Future enhancements will include containerization and deployment support.
+The application follows a client-server model with a React frontend and a Python FastAPI backend. Agents are discovered from the `agents/` directory and run in isolated subprocesses, with their own virtual environments and dependencies managed automatically by the backend.
+
+For a comprehensive overview of the architecture, please see the [ARCHITECTURE.md](ARCHITECTURE.md) file.
 
 ### Frontend
 
-The frontend is a single-page application built with **React** and **Vite**.
-
-*   **UI Components**: The UI is divided into an `AgentSidebar` for managing agents, a `ChatInterface` for interacting with them, and an `InfoPane` that displays real-time logs and events.
-*   **Real-time Functionality**: A custom hook, `useManagementSocket.ts`, connects to the backend's WebSocket to send control commands (start/stop) and receive live status updates, logs, and agent events.
+The frontend is a single-page application built with **React** and **Vite**. It uses a WebSocket to communicate with the backend for real-time updates, allowing users to manage agents and interact with them through a chat interface.
 
 ### Backend
 
-The backend is a Python application built with **FastAPI** that manages the agent lifecycle.
-
-*   **`AgentRunner`**: This core class is responsible for a single agent. It creates a dedicated virtual environment, installs dependencies using `uv`, and launches the agent in an isolated subprocess.
-*   **`agent_host.py`**: This script acts as a lightweight wrapper inside the agent's subprocess. It dynamically loads the agent's `serving` object and starts a `uvicorn` server, exposing the agent at a specific port.
-*   **Event Streaming**: A custom ADK plugin (`EventStreamingPlugin`) is injected into the agent at runtime. It intercepts tool call events and writes them to a pipe. The `AgentRunner` reads from this pipe and broadcasts the events in real-time to the frontend via WebSocket, allowing for deep introspection without altering the agent's code.
-*   **WebSocket API**: The primary `/ws` endpoint handles commands from the frontend and broadcasts status updates, logs, and agent events to all connected clients.
+The backend is a Python application built with **FastAPI**. It manages the agent lifecycle, including creating virtual environments, installing dependencies, and running agents as isolated subprocesses. It uses a WebSocket to send agent status, logs, and events to the frontend.
 
 ## How to Run
 
