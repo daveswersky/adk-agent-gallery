@@ -32,3 +32,5 @@ __pycache__/
 agents.config.yaml
 gallery.config.yaml
 desired-agentlist.png
+
+llms-full.txt

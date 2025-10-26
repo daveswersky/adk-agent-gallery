@@ -10,6 +10,11 @@ This document is a running list of ideas for future enhancements to the Agent Ga
   - **Architecture:** A "dual-runner" architecture will be implemented where the host remains responsible for the full lifecycle of all agents, including dependency management. A new `A2AAgentRunner` will be created to handle self-hosted agents, while the existing `AgentRunner` will manage the default "raw" ADK agents.
   - **Configuration:** A new `agent_configs` section in `gallery.config.yaml` will provide a centralized way to define an agent's `type` (e.g., `a2a`), its `dependencies` file (e.g., `pyproject.toml`), and its `entrypoint` script (e.g., `__main__.py`). This ensures a consistent and explicit configuration model.
   - Subsequent phases will build on this foundation to implement the actual message-passing infrastructure.
+- [SSE Integration](./epic/SSE-Integration.md)
+  - **Effort Assessment: EPIC**
+  - This epic refactors the backend to replace the custom pipe-based IPC for event streaming with the ADK's native Server-Side Events (SSE) architecture.
+  - **Architecture:** The plan simplifies the communication model while preserving the critical feature of running each agent in a separate process on its own port. The `agent_server.py` for each subprocess will be converted into a standard ADK server, exposing native REST and SSE endpoints. The main backend (`main.py`) will manage the agent lifecycles and inform the frontend of the direct URL for each running agent. The frontend will then communicate directly with the agent's SSE endpoint (`/chat/stream`) for events and its REST endpoint (`/run`) for sending prompts.
+  - **Impact:** This change significantly simplifies the backend by removing multiple layers of WebSocket proxying and the custom event pipe system (`EventStreamingPlugin`, `ConnectionManager`, etc.), leading to a more robust and maintainable implementation that aligns with standard ADK practices.
 - [Container Mode](./epic/Container-Mode.md)
   - **Effort Assessment: EPIC**
   - This represents a major architectural addition, creating a parallel agent execution engine using Docker.
