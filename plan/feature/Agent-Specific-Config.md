@@ -37,10 +37,10 @@ To address this, we will implement a centralized, host-level configuration syste
             - GOOGLE_API_KEY
             - GEMINI_API_KEY
           # Project and Location for Vertex AI
-          GOOGLE_CLOUD_PROJECT: "primaryproject-305315"
+          GOOGLE_CLOUD_PROJECT: "<your-gcp-project>"
           GOOGLE_CLOUD_LOCATION: "us-central1"
           # Agent-specific values
-          RAG_CORPUS: "projects/primaryproject-305315/locations/us-central1/ragCorpora/5685794529555251200"
+          RAG_CORPUS: "projects/<your gcp project>/locations/us-central1/ragCorpora/<your-corpus-id>"
 
       some-other-agent:
         environment:
