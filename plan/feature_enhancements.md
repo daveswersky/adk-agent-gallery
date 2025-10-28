@@ -120,13 +120,17 @@ This document is a running list of ideas for future enhancements to the Agent Ga
   - This is a developer experience enhancement that removes the need to restart the backend server after changing the configuration.
   - **Backend:** Requires adding a file-watching library (like `watchfiles`) to monitor `gallery.config.yaml`. A background task will be started with the server to watch for changes. When a change is detected, the backend will re-parse the configuration, re-discover the agents, and broadcast a new `agents_update` message to all connected clients via the WebSocket.
   - **Frontend:** The `useManagementSocket.ts` hook will be updated to handle the new `agents_update` message. Upon receiving this message, it will update the `agents` state with the new list, preserving the status of any agents that are currently running.
+- [Pinned Agents](./feature/pinned-agents.md): User can pin agents to the top of the list. Stored in gallery.config.yaml
+  - **Effort Assessment: FEATURE**
+  - This is a quality-of-life feature that allows users to pin agents to the top of the list for easy access. The configuration for pinned agents will be stored in `gallery.config.yaml`.
+  - **Backend:** The `/agents` endpoint will be updated to read a new `pinned_agents` list from the configuration. It will then add a `pinned` boolean attribute to each agent object returned to the frontend.
+  - **Frontend:** The UI will be updated to reflect the pinned state. This involves updating the `Agent` type, modifying the sorting logic in the `AgentSidebar.tsx` to always show pinned agents first, and adding a visual indicator (e.g., a pin icon) to the `AgentListItem` component.
 
 ## FEATURE / EPIC IDEA BACKLOG
-- [Pinned Agents](): User can pin agents to the top of the list. Stored in gallery.config.yaml
 - [Sample Queries](): List of sample queries defined in gallery.config.yaml. Queried on agent start, available in a dropdown embedded in the ChatInterface query field
 - [Create an Agent](): Create a "no-code" ADK agent and add it to the gallery. Option to use Python or Agent Config
 - [Agent Gallery Tour](): Use a React library e.g. React Joyride to present a tour of the application for first-time users
-
+- [MCP Support](): ???
 
 ## TASKS
 - Subagent support/testing (tools work, need to try subagent transfers)
