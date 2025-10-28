@@ -120,7 +120,8 @@ This document is a running list of ideas for future enhancements to the Agent Ga
   - This is a developer experience enhancement that removes the need to restart the backend server after changing the configuration.
   - **Backend:** Requires adding a file-watching library (like `watchfiles`) to monitor `gallery.config.yaml`. A background task will be started with the server to watch for changes. When a change is detected, the backend will re-parse the configuration, re-discover the agents, and broadcast a new `agents_update` message to all connected clients via the WebSocket.
   - **Frontend:** The `useManagementSocket.ts` hook will be updated to handle the new `agents_update` message. Upon receiving this message, it will update the `agents` state with the new list, preserving the status of any agents that are currently running.
-- [Pinned Agents](./feature/pinned-agents.md): User can pin agents to the top of the list. Stored in gallery.config.yaml
+- ~~[Pinned Agents](./feature/pinned-agents.md)~~: User can pin agents to the top of the list. Stored in gallery.config.yaml
+  - **Status: Implemented & Merged**
   - **Effort Assessment: FEATURE**
   - This is a quality-of-life feature that allows users to pin agents to the top of the list for easy access. The configuration for pinned agents will be stored in `gallery.config.yaml`.
   - **Backend:** The `/agents` endpoint will be updated to read a new `pinned_agents` list from the configuration. It will then add a `pinned` boolean attribute to each agent object returned to the frontend.
