@@ -1,7 +1,6 @@
-import asyncio
 import json
 import os
-from typing import Optional, List
+from typing import List
 import httpx
 
 from backend.base_agent_runner import BaseAgentRunner

@@ -168,7 +168,7 @@ class BaseAgentRunner(ABC):
             asyncio.create_task(_read_pip_stream(proc.stderr, self.agent_name, True))
             await proc.wait()
             if proc.returncode != 0:
-                raise RuntimeError(f"Failed to install dependencies.")
+                raise RuntimeError("Failed to install dependencies.")
 
         # 3. Create the pipe for event streaming
         read_fd, write_fd = os.pipe()
