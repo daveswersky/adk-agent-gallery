@@ -115,11 +115,12 @@ This document is a running list of ideas for future enhancements to the Agent Ga
     - **Agent-level API:** The agent's internal web server (in `agent_host.py`) needs a new endpoint to retrieve artifacts by name from the `ArtifactService`.
     - **Backend Proxy:** The main backend (`main.py`) needs a new endpoint that proxies artifact download requests from the frontend to the correct agent subprocess.
     - **Frontend:** The chat UI needs to be updated to recognize `artifact://` URIs in agent responses and render them as clickable download links pointing to the new backend proxy endpoint.
-- [Hot-Reload Configuration](./feature/Hot-Reload-Config.md): Automatically reload the agent list when `gallery.config.yaml` is modified.
+- ~~[Hot-Reload Configuration](./feature/Hot-Reload-Config.md)~~: Automatically reload the agent list when `gallery.config.yaml` is modified via the UI.
+  - **Status: Implemented & Merged**
   - **Effort Assessment: FEATURE**
-  - This is a developer experience enhancement that removes the need to restart the backend server after changing the configuration.
-  - **Backend:** Requires adding a file-watching library (like `watchfiles`) to monitor `gallery.config.yaml`. A background task will be started with the server to watch for changes. When a change is detected, the backend will re-parse the configuration, re-discover the agents, and broadcast a new `agents_update` message to all connected clients via the WebSocket.
-  - **Frontend:** The `useManagementSocket.ts` hook will be updated to handle the new `agents_update` message. Upon receiving this message, it will update the `agents` state with the new list, preserving the status of any agents that are currently running.
+  - This is a developer experience enhancement that removes the need to restart the backend server after changing the configuration. The implementation supports reloading the configuration when it is modified through UI actions (e.g., pinning an agent).
+  - **Backend:** The implementation leverages the `reload_agents_and_notify` function, which is called after any API endpoint modifies `gallery.config.yaml`. This function re-parses the configuration, re-discovers agents, and broadcasts an `agents_update` message to all connected clients. Automatic file-watching for manual edits was considered but deemed unnecessary for the current scope.
+  - **Frontend:** The `useManagementSocket.ts` hook handles the `agents_update` message, updating the `agents` state with the new list while preserving the status of any running agents.
 - ~~[Pinned Agents](./feature/pinned-agents.md)~~: User can pin agents to the top of the list. Stored in gallery.config.yaml
   - **Status: Implemented & Merged**
   - **Effort Assessment: FEATURE**
