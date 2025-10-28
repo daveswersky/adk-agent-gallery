@@ -2,37 +2,34 @@ import asyncio
 import json
 import os
 import re
-import yaml
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Dict
+from typing import Dict, List
 from backend.config import AgentConfig
 from pydantic import BaseModel
-import multiprocessing as mp
 from backend.a2a_agent_runner import A2AAgentRunner
 from backend.connection_manager import manager, running_processes, starting_agents, startup_lock
 from backend.agent_runner import AgentRunner
+from ruamel.yaml import YAML
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+CONFIG_PATH = os.path.join(PROJECT_ROOT, "gallery.config.yaml")
 
 app = FastAPI()
+
+# Use ruamel.yaml to preserve comments and formatting
+yaml_loader = YAML()
 
 # Load gallery configuration
 CONFIG = {}
 try:
-    with open(os.path.join(PROJECT_ROOT, "gallery.config.yaml"), "r") as f:
-        CONFIG = yaml.safe_load(f)
+    with open(CONFIG_PATH, "r") as f:
+        CONFIG = yaml_loader.load(f)
 except FileNotFoundError:
     print("gallery.config.yaml not found. Using default settings.")
-except yaml.YAMLError as e:
+except Exception as e:
     print(f"Error parsing gallery.config.yaml: {e}")
-
-class AgentConfig(BaseModel):
-    """Represents the runtime configuration for a single agent."""
-    type: str = "adk"
-    dependencies: str = "requirements.txt"
-    entrypoint: str = ""
 
 # Parse agent-specific configurations with defaults
 AGENT_CONFIGS: Dict[str, AgentConfig] = {}
@@ -57,6 +54,10 @@ class TurnRequest(BaseModel):
     agent_name: str
     prompt: str
 
+class PinAgentRequest(BaseModel):
+    agent_id: str
+    pin: bool
+
 @app.on_event("shutdown")
 async def shutdown_event():
     """Gracefully terminate all running agent subprocesses on server shutdown."""
@@ -70,11 +71,69 @@ async def shutdown_event():
     running_processes.clear()
     print("All agent processes terminated.")
 
+async def reload_agents_and_notify():
+    """Reloads agent configuration and notifies connected clients."""
+    global CONFIG
+    try:
+        with open(CONFIG_PATH, "r") as f:
+            CONFIG = yaml_loader.load(f)
+        
+        # Re-discover agents
+        agents_list = await get_agents()
+        
+        # Create a dictionary from the list for the frontend
+        agents_dict = {agent['id']: agent for agent in agents_list}
+
+        await manager.broadcast(json.dumps({
+            "type": "agents_update",
+            "agents": agents_dict
+        }))
+        print("Successfully reloaded configuration and notified clients.")
+    except Exception as e:
+        print(f"Error during configuration reload: {e}")
+
+
+config_lock = asyncio.Lock()
+
+@app.post("/config/pinned_agents")
+async def update_pinned_agents(request: PinAgentRequest):
+    """Adds or removes an agent from the pinned_agents list in the config."""
+    async with config_lock:
+        try:
+            with open(CONFIG_PATH, "r") as f:
+                config_data = yaml_loader.load(f) or {}
+
+            pinned_agents: List[str] = config_data.get("pinned_agents", [])
+
+            if request.pin:
+                if request.agent_id not in pinned_agents:
+                    pinned_agents.append(request.agent_id)
+            else:
+                if request.agent_id in pinned_agents:
+                    pinned_agents.remove(request.agent_id)
+            
+            config_data["pinned_agents"] = pinned_agents
+
+            with open(CONFIG_PATH, "w") as f:
+                yaml_loader.dump(config_data, f)
+
+            # Await the reload to ensure the config is updated before returning
+            await reload_agents_and_notify()
+
+            return {"status": "success", "pinned_agents": pinned_agents}
+
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="gallery.config.yaml not found.")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error updating config file: {e}")
+
+
 @app.get("/agents")
 async def get_agents():
     """Scans agent directories defined in the config and returns a list of available agents."""
     agents = []
     agent_roots = CONFIG.get("agent_roots", [])
+    pinned_agents = CONFIG.get("pinned_agents", [])
     if not agent_roots:
         print("Warning: 'agent_roots' not defined in gallery.config.yaml. No agents will be loaded.")
         return []
@@ -97,6 +156,7 @@ async def get_agents():
                 
                 # Construct the full agent ID to look up its type
                 agent_id = os.path.join(root.get("path"), agent_name)
+                is_pinned = agent_id in pinned_agents
                 agent_type = get_agent_config(agent_id).type
 
                 # For ADK agents, attempt to read a more specific description from the agent's code
@@ -119,6 +179,7 @@ async def get_agents():
                     "name": agent_name,
                     "description": description,
                     "type": agent_type,
+                    "pinned": is_pinned,
                 })
     return agents
 
@@ -368,7 +429,7 @@ async def stop_agent_process(agent_path: str):
     print(f"--- DEBUG: Received stop command for '{agent_name_for_display}' ({agent_path})")
     if agent_path in running_processes:
         runner = running_processes[agent_path]["runner"]
-        print(f"--- DEBUG: Found runner. Calling runner.stop().")
+        print("--- DEBUG: Found runner. Calling runner.stop().")
         # This will terminate the process, which unblocks the 'await wait()'
         # in the original start_agent_process task.
         await runner.stop()

@@ -23,6 +23,7 @@ export interface Agent {
   status: AgentStatus;
   type: 'adk' | 'a2a';
   url?: string;
+  pinned: boolean;
 }
 
 export interface AgentGroup {
