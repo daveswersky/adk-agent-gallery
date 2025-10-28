@@ -93,36 +93,39 @@ async def reload_agents_and_notify():
         print(f"Error during configuration reload: {e}")
 
 
+config_lock = asyncio.Lock()
+
 @app.post("/config/pinned_agents")
 async def update_pinned_agents(request: PinAgentRequest):
     """Adds or removes an agent from the pinned_agents list in the config."""
-    try:
-        with open(CONFIG_PATH, "r") as f:
-            config_data = yaml_loader.load(f)
+    async with config_lock:
+        try:
+            with open(CONFIG_PATH, "r") as f:
+                config_data = yaml_loader.load(f) or {}
 
-        pinned_agents: List[str] = config_data.get("pinned_agents", [])
+            pinned_agents: List[str] = config_data.get("pinned_agents", [])
 
-        if request.pin:
-            if request.agent_id not in pinned_agents:
-                pinned_agents.append(request.agent_id)
-        else:
-            if request.agent_id in pinned_agents:
-                pinned_agents.remove(request.agent_id)
-        
-        config_data["pinned_agents"] = pinned_agents
+            if request.pin:
+                if request.agent_id not in pinned_agents:
+                    pinned_agents.append(request.agent_id)
+            else:
+                if request.agent_id in pinned_agents:
+                    pinned_agents.remove(request.agent_id)
+            
+            config_data["pinned_agents"] = pinned_agents
 
-        with open(CONFIG_PATH, "w") as f:
-            yaml_loader.dump(config_data, f)
+            with open(CONFIG_PATH, "w") as f:
+                yaml_loader.dump(config_data, f)
 
-        # Trigger a reload to update all clients
-        asyncio.create_task(reload_agents_and_notify())
+            # Await the reload to ensure the config is updated before returning
+            await reload_agents_and_notify()
 
-        return {"status": "success", "pinned_agents": pinned_agents}
+            return {"status": "success", "pinned_agents": pinned_agents}
 
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="gallery.config.yaml not found.")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error updating config file: {e}")
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="gallery.config.yaml not found.")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error updating config file: {e}")
 
 
 @app.get("/agents")
