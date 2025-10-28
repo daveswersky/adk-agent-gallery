@@ -2,6 +2,8 @@
 
 Agent Gallery provides a user interface for managing and interacting with multiple agents built with the Google Agent Development Kit (ADK). It allows developers to run, test, and debug agents in a realistic, isolated environment without needing to modify the agent's source code.
 
+![Agent Gallery](./agent-gallery-screenshot.png)
+
 This application serves as a powerful alternative to the standard `adk web` command, offering several key advantages:
 
 *   **Multi-Agent Management**: View, start, and stop multiple agents from a single, consolidated user interface.
