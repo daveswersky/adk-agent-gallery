@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Agent, AgentStatus, ServerMessage, AgentEvent, AgentGroup } from '../types';
 import { sessionManager } from '../services/sessionManager';
+import { updatePinnedAgents } from '../services/configService';
 
 const MANAGEMENT_URL = 'ws://localhost:8000/ws';
 const AGENTS_URL = 'http://localhost:8000/agents';
@@ -31,16 +32,25 @@ export const useManagementSocket = ({ onAgentStarted }: { onAgentStarted: (agent
 
   useEffect(() => {
     if (agentRoots.length > 0 && agents.length > 0) {
-      const runningAgents = agents.filter(agent =>
+      // Separate agents into pinned and unpinned lists first.
+      const pinnedAgents = agents.filter(agent => agent.pinned);
+      const unpinnedAgents = agents.filter(agent => !agent.pinned);
+
+      const runningAgents = unpinnedAgents.filter(agent =>
         agent.status === AgentStatus.RUNNING ||
         agent.status === AgentStatus.STARTING ||
         agent.status === AgentStatus.STOPPING
       );
 
-      const stoppedAgents = agents.filter(agent =>
+      const stoppedAgents = unpinnedAgents.filter(agent =>
         agent.status === AgentStatus.STOPPED ||
         agent.status === AgentStatus.ERROR
       );
+
+      const pinnedGroup: AgentGroup = {
+        name: 'Pinned',
+        agents: pinnedAgents,
+      };
 
       const runningGroup: AgentGroup = {
         name: 'Running Agents',
@@ -70,6 +80,9 @@ export const useManagementSocket = ({ onAgentStarted }: { onAgentStarted: (agent
 
 
       const newGroups = [];
+      if (pinnedGroup.agents.length > 0) {
+        newGroups.push(pinnedGroup);
+      }
       if (runningGroup.agents.length > 0) {
         newGroups.push(runningGroup);
       }
@@ -136,6 +149,20 @@ export const useManagementSocket = ({ onAgentStarted }: { onAgentStarted: (agent
           const message: ServerMessage = JSON.parse(event.data);
           if (message.type === 'config') {
             setAgentRoots(message.data);
+          } else if (message.type === 'agents_update') {
+            // This message is sent when the config file changes.
+            // We need to merge the new agent list with the existing one to preserve status.
+            setAgents(prevAgents => {
+                const newAgentList = Object.values(message.agents);
+                return newAgentList.map(newAgent => {
+                    const existingAgent = prevAgents.find(a => a.id === newAgent.id);
+                    return {
+                        ...newAgent,
+                        status: existingAgent ? existingAgent.status : AgentStatus.STOPPED,
+                        url: existingAgent ? existingAgent.url : undefined,
+                    };
+                });
+            });
           } else if (message.type === 'status') {
             const { agent: agentId, status, url } = message;
             setAgents(prevAgents => {
@@ -245,5 +272,14 @@ export const useManagementSocket = ({ onAgentStarted }: { onAgentStarted: (agent
     sendCommand({ action: 'stop_all' });
   };
 
-  return { agents, agentGroups, logs, isConnected, agentEvents, clearAgentEvents, startAgent, stopAgent, stopAllAgents };
+  const toggleAgentPin = async (agentId: string, pin: boolean) => {
+    try {
+      await updatePinnedAgents(agentId, pin);
+      // The backend will send an 'agents_update' message, which will trigger a state update.
+    } catch (error) {
+      appendLog(`--- Error pinning agent: ${error} ---`);
+    }
+  };
+
+  return { agents, agentGroups, logs, isConnected, agentEvents, clearAgentEvents, startAgent, stopAgent, stopAllAgents, toggleAgentPin };
 };

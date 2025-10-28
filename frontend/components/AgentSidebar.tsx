@@ -1,7 +1,7 @@
 import React from 'react';
 import { Flipper, Flipped } from 'react-flip-toolkit';
 import { Agent, AgentGroup, AgentStatus } from '../types';
-import { PlayIcon, StopIcon, SpinnerIcon, ClearIcon, CodeBracketIcon } from './icons';
+import { PlayIcon, StopIcon, SpinnerIcon, ClearIcon, CodeBracketIcon, PinIcon } from './icons';
 
 interface AgentSidebarProps {
   agentGroups: AgentGroup[];
@@ -12,6 +12,7 @@ interface AgentSidebarProps {
   onStopAll: () => void;
   onSelectAgent: (agent: Agent) => void;
   onViewCode: (id: string) => void;
+  onTogglePin: (id: string, pinned: boolean) => void;
 }
 
 const AgentListItem: React.FC<{
@@ -20,10 +21,16 @@ const AgentListItem: React.FC<{
   onStop: (id: string) => void;
   onSelect: (agent: Agent) => void;
   onViewCode: (id: string) => void;
+  onTogglePin: (id: string, pinned: boolean) => void;
   isActive: boolean;
-}> = ({ agent, onStart, onStop, onSelect, onViewCode, isActive }) => {
+}> = ({ agent, onStart, onStop, onSelect, onViewCode, onTogglePin, isActive }) => {
   const isRunning = agent.status === AgentStatus.RUNNING;
   const isPending = agent.status === AgentStatus.STARTING || agent.status === AgentStatus.STOPPING;
+
+  const handlePinClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onTogglePin(agent.id, !agent.pinned);
+  };
 
   return (
     <div
@@ -32,6 +39,9 @@ const AgentListItem: React.FC<{
       className={`p-2 rounded-md flex items-center justify-between transition-colors duration-200 cursor-pointer ${isActive ? 'bg-adk-accent/20' : 'hover:bg-adk-dark-3'}`}
     >
       <div className="flex items-center space-x-2 truncate">
+        <button onClick={handlePinClick} className="p-1 rounded-md hover:bg-adk-dark-3 transition-colors" title={agent.pinned ? 'Unpin Agent' : 'Pin Agent'}>
+          <PinIcon className={`w-4 h-4 flex-shrink-0 ${agent.pinned ? 'text-adk-accent' : 'text-adk-text-secondary'}`} />
+        </button>
         <span className="font-mono text-adk-text truncate">{agent.name}</span>
         {agent.type === 'a2a' && (
           <span className="bg-blue-500/20 text-blue-300 text-xs font-mono px-2 py-1 rounded-md">A2A</span>
@@ -74,7 +84,7 @@ const AgentListItem: React.FC<{
 };
 
 
-export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agentGroups, selectedAgent, isConnected, onStart, onStop, onStopAll, onSelectAgent, onViewCode }) => {
+export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agentGroups, selectedAgent, isConnected, onStart, onStop, onStopAll, onSelectAgent, onViewCode, onTogglePin }) => {
   const [searchTerm, setSearchTerm] = React.useState('');
 
   const handleStartAgent = React.useCallback((id: string) => {
@@ -86,7 +96,7 @@ export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agentGroups, selecte
 
   const anyAgentRunning = allAgents.some(agent => agent.status === AgentStatus.RUNNING);
 
-  const sortAgentsByStatus = (agents: Agent[]): Agent[] => {
+  const sortAgents = (agents: Agent[]): Agent[] => {
     const statusOrder = {
       [AgentStatus.RUNNING]: 1,
       [AgentStatus.STARTING]: 2,
@@ -94,10 +104,19 @@ export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agentGroups, selecte
       [AgentStatus.STOPPED]: 4,
       [AgentStatus.ERROR]: 5,
     };
-    return [...agents].sort((a, b) => (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99));
+    return [...agents].sort((a, b) => {
+      if (a.pinned !== b.pinned) {
+        return a.pinned ? -1 : 1;
+      }
+      const statusDiff = (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
+      if (statusDiff !== 0) {
+        return statusDiff;
+      }
+      return a.name.localeCompare(b.name);
+    });
   };
 
-  const filteredAndSortedAgents = sortAgentsByStatus(
+  const filteredAndSortedAgents = sortAgents(
     allAgents.filter(agent => agent.name.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
@@ -105,7 +124,7 @@ export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agentGroups, selecte
     ? [{ name: 'Search Results', agents: filteredAndSortedAgents }]
     : agentGroups.map(group => ({
         ...group,
-        agents: sortAgentsByStatus(group.agents)
+        agents: sortAgents(group.agents)
       }));
 
   return (
@@ -161,6 +180,7 @@ export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agentGroups, selecte
                         onStop={onStop}
                         onSelect={onSelectAgent}
                         onViewCode={onViewCode}
+                        onTogglePin={onTogglePin}
                         isActive={selectedAgent?.id === agent.id}
                       />
                     </div>

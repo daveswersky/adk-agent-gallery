@@ -4,76 +4,52 @@ This document outlines the implementation plan for the "Pinned Agents" feature.
 
 ## 1. Overview
 
-The goal of this feature is to allow users to pin their favorite or most frequently used agents to the top of the agent list in the sidebar for easier access. The pinned state will be stored in the main `gallery.config.yaml` file.
+The goal of this feature is to allow users to pin their favorite or most frequently used agents to the top of the agent list in the sidebar for easier access. The pinned state will be stored in the main `gallery.config.yaml` file, and users will be able to modify it directly from the UI.
 
-## 2. Implementation Details
+## 2. Development Phases
 
-### 2.1. Configuration (`gallery.config.yaml`)
+### Phase 1: Read-Only Display (Completed)
 
-- A new top-level list key `pinned_agents` will be added to `gallery.config.yaml`.
-- This list will contain the `id`s of the agents that should be pinned.
+-   **Backend:** The `/agents` endpoint reads a `pinned_agents` list from `gallery.config.yaml` and adds a `pinned: true/false` attribute to each agent object.
+-   **Frontend:** The UI uses the `pinned` attribute to display a pin icon and sort pinned agents to the top of the list.
 
-**Example `gallery.config.yaml`:**
+### Phase 2: Interactive Pinning
 
-```yaml
-agent_roots:
-  - name: "Core Agents"
-    path: "agents"
+This phase makes the pinning functionality interactive, allowing users to pin and unpin agents directly from the UI.
 
-pinned_agents:
-  - "agents/greeting_agent"
-  - "agents/weather_agent"
-```
+#### 2.1. Backend (`main.py`)
 
-### 2.2. Backend (`backend/main.py`)
+A new API endpoint will be created to handle updates to the pinned agents list.
 
-- The `/agents` endpoint in `main.py` will be modified.
-- After discovering all agents from the `agent_roots`, it will read the `pinned_agents` list from the loaded `CONFIG`.
-- It will then iterate through the discovered agents and add a new boolean attribute `pinned` to each agent's dictionary.
-- If an agent's `id` is present in the `pinned_agents` list, `pinned` will be set to `true`; otherwise, it will be `false`.
-
-### 2.3. Frontend
-
-#### 2.3.1. Type Definition (`frontend/types.ts`)
-
-- The `Agent` interface will be updated to include the new property:
-  ```typescript
-  export interface Agent {
-    // ... existing properties
-    pinned: boolean;
-  }
-  ```
-
-#### 2.3.2. State Management (`frontend/hooks/useManagementSocket.ts`)
-
-- The `useManagementSocket` hook will automatically receive the `pinned` property for each agent from the updated `/agents` endpoint.
-- The sorting logic within the hook that populates `agentGroups` will be updated. The primary sort key will be `pinned` (descending), and the secondary sort key will be the existing status-based sorting. This will ensure pinned agents appear at the top of the "Running" group and their respective "Stopped" groups.
-
-#### 2.3.3. UI (`frontend/components/AgentSidebar.tsx`)
-
-- The `AgentListItem` component will be updated to visually indicate a pinned agent. A "pin" icon will be displayed next to the agent's name.
-- A new button with a pin icon will be added to the `AgentListItem`. Clicking this button will eventually be used to toggle the pinned state. (Note: The initial implementation will focus on displaying the pinned state; toggling will be a future enhancement).
-- The `sortAgentsByStatus` function will be modified to prioritize pinned agents.
-
-```typescript
-const sortAgentsByStatus = (agents: Agent[]): Agent[] => {
-  const statusOrder = {
-    [AgentStatus.RUNNING]: 1,
-    [AgentStatus.STARTING]: 2,
-    [AgentStatus.STOPPING]: 3,
-    [AgentStatus.STOPPED]: 4,
-    [AgentStatus.ERROR]: 5,
-  };
-  return [...agents].sort((a, b) => {
-    if (a.pinned !== b.pinned) {
-      return a.pinned ? -1 : 1;
+-   **Endpoint:** `POST /config/pinned_agents`
+-   **Request Body:**
+    ```json
+    {
+      "agent_id": "agents/greeting_agent",
+      "pin": true
     }
-    return (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
-  });
-};
-```
+    ```
+-   **Logic:**
+    1.  **Read Config:** The endpoint will read the current `gallery.config.yaml`. To preserve comments and formatting, it's highly recommended to use a library like `ruamel.yaml` instead of the standard `PyYAML`.
+    2.  **Modify List:** It will find the `pinned_agents` list in the loaded configuration (or create it if it doesn't exist).
+    3.  It will add the `agent_id` to the list if `pin` is `true` and the ID isn't already present.
+    4.  It will remove the `agent_id` from the list if `pin` is `false` and the ID exists.
+    5.  **Write Config:** The modified configuration object will be written back to `gallery.config.yaml`, preserving the file's structure.
+    6.  **Hot Reload:** After successfully writing the file, the backend will trigger the same "hot reload" mechanism used by the file watcher. It will re-parse the configuration, re-discover the agents, and broadcast a new `agents_update` message to all connected clients via the WebSocket. This ensures all users see the change instantly.
 
-## 3. Development Phases
+#### 2.2. Frontend
 
-1.  **Phase 1 (Read-Only):** Implement the backend and frontend changes to read the pinned configuration from `gallery.config.yaml` and display it correctly in the UI.
-2.  **Phase 2 (Interactive):** Implement the functionality to pin/unpin an agent directly from the UI. This will require a new backend endpoint to dynamically update `gallery.config.yaml`. (This phase is out of scope for the initial implementation).
+-   **`frontend/components/AgentSidebar.tsx`**:
+    -   The `PinIcon` in the `AgentListItem` will be wrapped in a `<button>`.
+    -   An `onTogglePin` function will be passed down to the `AgentListItem`.
+    -   The button's `onClick` handler will call `onTogglePin(agent.id, !agent.pinned)`, stopping event propagation to prevent selecting the agent.
+    -   The icon's appearance will be updated to be more button-like on hover.
+
+-   **`frontend/hooks/useManagementSocket.ts`**:
+    -   A new function, `toggleAgentPin`, will be created. This function will be responsible for sending the request to the new backend endpoint.
+    -   It will take `agentId` and `isPinned` as arguments and make a `POST` request to `/config/pinned_agents`.
+    -   The hook will be updated to handle the `agents_update` message broadcast by the backend. This is the same message used by the config hot-reload feature, so the existing logic should handle the UI update automatically. No optimistic UI update is needed, as the WebSocket message will be the source of truth.
+
+-   **New Service (`frontend/services/configService.ts`)**:
+    -   A new service file will be created to encapsulate the API call.
+    -   It will contain a function like `updatePinnedAgents(agentId: string, pin: boolean)`.
