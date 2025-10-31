@@ -4,7 +4,8 @@ This document is a running list of ideas for future enhancements to the Agent Ga
 
 ## Epics
 
-- [A2A support](./epic/A2A-Support.md)
+- ~~[A2A support](./epic/A2A-Support.md)~~
+  - **Status: Implemented & Merged**
   - **Effort Assessment: EPIC**
   - The first phase of this epic involves a backend re-architecture to enable the gallery to run self-contained, "self-hosted" agents (like the A2A samples) which are required for agent-to-agent communication.
   - **Architecture:** A "dual-runner" architecture will be implemented where the host remains responsible for the full lifecycle of all agents, including dependency management. A new `A2AAgentRunner` will be created to handle self-hosted agents, while the existing `AgentRunner` will manage the default "raw" ADK agents.
@@ -102,7 +103,8 @@ This document is a running list of ideas for future enhancements to the Agent Ga
     - The `AgentSidebar.tsx` component must be modified to allow selecting agents that are not currently running.
     - State management in `App.tsx` must be updated to fetch and store the README content when a non-running agent is selected.
     - The `ChatInterface.tsx` component needs to be updated to display the fetched Markdown content when available, instead of the chat view.
-- [ADK Event View](./feature/Event-Viewer.md): Display a stream of ADK events in the InfoPane.
+- ~~[ADK Event View](./feature/Event-Viewer.md):~~ Display a stream of ADK events in the InfoPane.
+  - **Status: Implemented & Merged**
   - **Effort Assessment: FEATURE**
   - This feature will use the `EventStreamingPlugin` to capture and forward all ADK events (e.g., `on_prompt_start`, `on_tool_code_generated`, `on_llm_chunk`) from the agent subprocess to the frontend.
   - **Backend:** The `EventStreamingPlugin` needs to be attached to the `Runner` in `agent_host.py`. The plugin will send each event to the main backend, which will then broadcast it over the WebSocket.
@@ -133,13 +135,23 @@ This document is a running list of ideas for future enhancements to the Agent Ga
 - [Create an Agent](): Create a "no-code" ADK agent and add it to the gallery. Option to use Python or Agent Config
 - [Agent Gallery Tour](): Use a React library e.g. React Joyride to present a tour of the application for first-time users
 - [MCP Support](): ???
+- [Config Editor](): Per-agent config, exposed as a "gear" on an agent. Displays that element of gallery.config.yaml
+- [Cancel Query](): Cancel turn
+- [Expand Eventing Output](): Include functioncall/functionresponse. Use image-scoring ADK sample as test case
+- [Make README viewable for started agents]():
+- [Agent Status: Disabled](): Disable agents that are not suitable/not yet adapted for running in Gallery
 
-## TASKS
+
+## AGENT IDEAS
+- [Terraform Drafter](): Requirements to Terraform agent that iterates over the development of a Terraform script to achieve a particular config. Executes plan to validate.
+- []():
+
+## TASKS / CHORES
 - Subagent support/testing (tools work, need to try subagent transfers)
 - Test all ADK Sample Agents
-- Agent Gallery Cloud Run deployment
-    - Feature: instance-per agent option
-
+- Re-test config injection with RAG agent
+- Automated unit tests on PR create
+- 
 
 ## AGENTS
 - ADK Samples
